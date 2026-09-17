@@ -1,0 +1,108 @@
+neuron_id,neuron_name,folder,archive,cell_type,brain_region,species,size_bytes,reference_pmid,reference_doi
+104540,block_24622,antennal_lobe/projection_neurons,Bock,principal cell|uniglomerular projection,antennal lobe|glomerulus D,drosophila melanogaster,95625,30033368,10.1016/j.cell.2018.06.019
+104541,block_35246,antennal_lobe/projection_neurons,Bock,principal cell|uniglomerular projection,antennal lobe|glomerulus D,drosophila melanogaster,113318,30033368,10.1016/j.cell.2018.06.019
+104542,block_40637,antennal_lobe/projection_neurons,Bock,principal cell|uniglomerular projection,antennal lobe|glomerulus D,drosophila melanogaster,121635,30033368,10.1016/j.cell.2018.06.019
+104543,block_61221,antennal_lobe/projection_neurons,Bock,principal cell|uniglomerular projection,antennal lobe|glomerulus DA1,drosophila melanogaster,152991,30033368,10.1016/j.cell.2018.06.019
+104544,block_2863104,antennal_lobe/projection_neurons,Bock,principal cell|uniglomerular projection,antennal lobe|glomerulus DA1,drosophila melanogaster,120400,30033368,10.1016/j.cell.2018.06.019
+104545,block_57311,antennal_lobe/projection_neurons,Bock,principal cell|uniglomerular projection,antennal lobe|glomerulus DA1,drosophila melanogaster,121648,30033368,10.1016/j.cell.2018.06.019
+104546,block_755022,antennal_lobe/projection_neurons,Bock,principal cell|uniglomerular projection,antennal lobe|glomerulus DA1,drosophila melanogaster,123038,30033368,10.1016/j.cell.2018.06.019
+104547,block_27295,antennal_lobe/projection_neurons,Bock,principal cell|uniglomerular projection,antennal lobe|glomerulus DA1,drosophila melanogaster,218289,30033368,10.1016/j.cell.2018.06.019
+104548,block_57323,antennal_lobe/projection_neurons,Bock,principal cell|uniglomerular projection,antennal lobe|glomerulus DA1,drosophila melanogaster,108147,30033368,10.1016/j.cell.2018.06.019
+104549,block_57353,antennal_lobe/projection_neurons,Bock,principal cell|uniglomerular projection,antennal lobe|glomerulus DA1,drosophila melanogaster,127905,30033368,10.1016/j.cell.2018.06.019
+104550,block_57381,antennal_lobe/projection_neurons,Bock,principal cell|uniglomerular projection,antennal lobe|glomerulus DA1,drosophila melanogaster,175281,30033368,10.1016/j.cell.2018.06.019
+104551,block_38885,antennal_lobe/projection_neurons,Bock,principal cell|uniglomerular projection,antennal lobe|glomerulus DA2,drosophila melanogaster,157378,30033368,10.1016/j.cell.2018.06.019
+104552,block_57418,antennal_lobe/projection_neurons,Bock,principal cell|uniglomerular projection,antennal lobe|glomerulus DA2,drosophila melanogaster,102488,30033368,10.1016/j.cell.2018.06.019
+104553,block_1785034,antennal_lobe/projection_neurons,Bock,principal cell|uniglomerular projection,antennal lobe|glomerulus DA2,drosophila melanogaster,174867,30033368,10.1016/j.cell.2018.06.019
+104554,block_53631,antennal_lobe/projection_neurons,Bock,principal cell|uniglomerular projection,antennal lobe|glomerulus DA2,drosophila melanogaster,113074,30033368,10.1016/j.cell.2018.06.019
+104555,block_57422,antennal_lobe/projection_neurons,Bock,principal cell|uniglomerular projection,antennal lobe|glomerulus DA2,drosophila melanogaster,96287,30033368,10.1016/j.cell.2018.06.019
+104556,block_65465,antennal_lobe/projection_neurons,Bock,principal cell|uniglomerular projection,antennal lobe|glomerulus DA3,drosophila melanogaster,146590,30033368,10.1016/j.cell.2018.06.019
+104557,block_57349,antennal_lobe/projection_neurons,Bock,principal cell|uniglomerular projection,antennal lobe|glomerulus DA3,drosophila melanogaster,180734,30033368,10.1016/j.cell.2018.06.019
+104558,block_40749,antennal_lobe/projection_neurons,Bock,principal cell|uniglomerular projection,antennal lobe|glomerulus DA4|lateral,drosophila melanogaster,187865,30033368,10.1016/j.cell.2018.06.019
+104559,block_37250,antennal_lobe/projection_neurons,Bock,principal cell|uniglomerular projection,antennal lobe|glomerulus DA4|medial,drosophila melanogaster,232199,30033368,10.1016/j.cell.2018.06.019
+17714,Gad1-F-300048,antennal_lobe/local_neurons,Chiang,day3 Born|GABAergic|interneuron,antennal lobe|right,drosophila melanogaster,8824,21129968,10.1016/j.cub.2010.11.056
+17968,Gad1-F-500040,antennal_lobe/local_neurons,Chiang,day5 Born|GABAergic|interneuron,antennal lobe|left,drosophila melanogaster,37425,21129968,10.1016/j.cub.2010.11.056
+18047,Gad1-F-600021,antennal_lobe/local_neurons,Chiang,day6 Born|GABAergic|interneuron,antennal lobe|left,drosophila melanogaster,10756,21129968,10.1016/j.cub.2010.11.056
+18053,Gad1-F-600027,antennal_lobe/local_neurons,Chiang,day6 Born|GABAergic|interneuron,antennal lobe|left|Bordering Right Ventrolateral Neuropils,drosophila melanogaster,6629,21129968,10.1016/j.cub.2010.11.056
+18089,Gad1-F-600063,antennal_lobe/local_neurons,Chiang,day6 Born|GABAergic|interneuron,antennal lobe|right,drosophila melanogaster,18341,21129968,10.1016/j.cub.2010.11.056
+18162,Gad1-F-700040,antennal_lobe/local_neurons,Chiang,day7 Born|GABAergic|interneuron,antennal lobe|left,drosophila melanogaster,6790,21129968,10.1016/j.cub.2010.11.056
+18275,Gad1-F-900017,antennal_lobe/local_neurons,Chiang,day9 Born|GABAergic|interneuron,antennal lobe|left,drosophila melanogaster,23414,21129968,10.1016/j.cub.2010.11.056
+39750,Gad1-F-000116,antennal_lobe/local_neurons,Chiang,Embryo-born|GABAergic|interneuron,antennal lobe|left,drosophila melanogaster,15351,25866397,10.1016/j.cub.2015.03.021
+39790,Gad1-F-000156,antennal_lobe/local_neurons,Chiang,Embryo-born|GABAergic|interneuron,antennal lobe|left|Bordering Left Lateral Horn,drosophila melanogaster,9020,25866397,10.1016/j.cub.2015.03.021
+39813,Gad1-F-000179,antennal_lobe/local_neurons,Chiang,Embryo-born|GABAergic|interneuron,antennal lobe|left,drosophila melanogaster,6589,25866397,10.1016/j.cub.2015.03.021
+74267,KC-s-1,mushroom_body/kenyon_cells,FlyEM,principal cell|Kenyon cell|alpha-beta|surface-targeting,protocerebrum|mushroom body|alpha,drosophila melanogaster,27873,28718765,10.7554/eLife.26975
+74268,KC-s-1002590,mushroom_body/kenyon_cells,FlyEM,principal cell|Kenyon cell|alpha-beta|surface-targeting,protocerebrum|mushroom body|alpha,drosophila melanogaster,22999,28718765,10.7554/eLife.26975
+74269,KC-s-1009716,mushroom_body/kenyon_cells,FlyEM,principal cell|Kenyon cell|alpha-beta|surface-targeting,protocerebrum|mushroom body|alpha,drosophila melanogaster,25534,28718765,10.7554/eLife.26975
+74270,KC-s-1029634,mushroom_body/kenyon_cells,FlyEM,principal cell|Kenyon cell|alpha-beta|surface-targeting,protocerebrum|mushroom body|alpha,drosophila melanogaster,29375,28718765,10.7554/eLife.26975
+74271,KC-s-1032389,mushroom_body/kenyon_cells,FlyEM,principal cell|Kenyon cell|alpha-beta|surface-targeting,protocerebrum|mushroom body|alpha,drosophila melanogaster,26020,28718765,10.7554/eLife.26975
+74272,KC-s-1041982,mushroom_body/kenyon_cells,FlyEM,principal cell|Kenyon cell|alpha-beta|surface-targeting,protocerebrum|mushroom body|alpha,drosophila melanogaster,25209,28718765,10.7554/eLife.26975
+73930,KC-c-1014135,mushroom_body/kenyon_cells,FlyEM,principal cell|Kenyon cell|alpha-beta|core-targeting,protocerebrum|mushroom body|alpha,drosophila melanogaster,24923,28718765,10.7554/eLife.26975
+73931,KC-c-1019875,mushroom_body/kenyon_cells,FlyEM,principal cell|Kenyon cell|alpha-beta|core-targeting,protocerebrum|mushroom body|alpha,drosophila melanogaster,22012,28718765,10.7554/eLife.26975
+73932,KC-c-1025619,mushroom_body/kenyon_cells,FlyEM,principal cell|Kenyon cell|alpha-beta|core-targeting,protocerebrum|mushroom body|alpha,drosophila melanogaster,22444,28718765,10.7554/eLife.26975
+73933,KC-c-1026733,mushroom_body/kenyon_cells,FlyEM,principal cell|Kenyon cell|alpha-beta|core-targeting,protocerebrum|mushroom body|alpha,drosophila melanogaster,25568,28718765,10.7554/eLife.26975
+73934,KC-c-1039553,mushroom_body/kenyon_cells,FlyEM,principal cell|Kenyon cell|alpha-beta|core-targeting,protocerebrum|mushroom body|alpha,drosophila melanogaster,23167,28718765,10.7554/eLife.26975
+73935,KC-c-1045218,mushroom_body/kenyon_cells,FlyEM,principal cell|Kenyon cell|alpha-beta|core-targeting,protocerebrum|mushroom body|alpha,drosophila melanogaster,21711,28718765,10.7554/eLife.26975
+74189,KC-p-12191634,mushroom_body/kenyon_cells,FlyEM,principal cell|Kenyon cell|alpha-beta|posterior-targeting,protocerebrum|mushroom body|alpha,drosophila melanogaster,38521,28718765,10.7554/eLife.26975
+74190,KC-p-1292600,mushroom_body/kenyon_cells,FlyEM,principal cell|Kenyon cell|alpha-beta|posterior-targeting,protocerebrum|mushroom body|alpha,drosophila melanogaster,39234,28718765,10.7554/eLife.26975
+74191,KC-p-146758153,mushroom_body/kenyon_cells,FlyEM,principal cell|Kenyon cell|alpha-beta|posterior-targeting,protocerebrum|mushroom body|alpha,drosophila melanogaster,30035,28718765,10.7554/eLife.26975
+74192,KC-p-2165505,mushroom_body/kenyon_cells,FlyEM,principal cell|Kenyon cell|alpha-beta|posterior-targeting,protocerebrum|mushroom body|alpha,drosophila melanogaster,38939,28718765,10.7554/eLife.26975
+74193,KC-p-2165676,mushroom_body/kenyon_cells,FlyEM,principal cell|Kenyon cell|alpha-beta|posterior-targeting,protocerebrum|mushroom body|alpha,drosophila melanogaster,34683,28718765,10.7554/eLife.26975
+74194,KC-p-2937736,mushroom_body/kenyon_cells,FlyEM,principal cell|Kenyon cell|alpha-beta|posterior-targeting,protocerebrum|mushroom body|alpha,drosophila melanogaster,34262,28718765,10.7554/eLife.26975
+104626,block_30591,mushroom_body/output_neurons_MBON,Bock,interneuron|GABAergic|output neuron,protocerebrum|mushroom body|Calyx Pedunculus,drosophila melanogaster,509559,30033368,10.1016/j.cell.2018.06.019
+139067,2333007-MVP2,mushroom_body/output_neurons_MBON,Kadow,principal cell|GABAergic|MVP2|mushroom body output neuron (MBON)-gamma1pedc>alpha/beta,protocerebrum|mushroom body,drosophila melanogaster,1970935,31471123,10.1016/j.neuron.2019.07.028
+74753,MBON-06-1190582,mushroom_body/output_neurons_MBON,FlyEM,principal cell|output neuron,protocerebrum|mushroom body|alpha,drosophila melanogaster,144626,28718765,10.7554/eLife.26975
+74754,MBON-07-A-3338684,mushroom_body/output_neurons_MBON,FlyEM,principal cell|output neuron,protocerebrum|mushroom body|alpha,drosophila melanogaster,925320,28718765,10.7554/eLife.26975
+74755,MBON-07-B-3878341,mushroom_body/output_neurons_MBON,FlyEM,principal cell|output neuron,protocerebrum|mushroom body|alpha,drosophila melanogaster,961593,28718765,10.7554/eLife.26975
+74756,MBON-11-L-8862577,mushroom_body/output_neurons_MBON,FlyEM,principal cell|output neuron,protocerebrum|mushroom body|alpha,drosophila melanogaster,22789,28718765,10.7554/eLife.26975
+74757,MBON-11-R-2089450,mushroom_body/output_neurons_MBON,FlyEM,principal cell|output neuron,protocerebrum|mushroom body|alpha,drosophila melanogaster,73514,28718765,10.7554/eLife.26975
+74758,MBON-13-8905338,mushroom_body/output_neurons_MBON,FlyEM,principal cell|output neuron,protocerebrum|mushroom body|alpha,drosophila melanogaster,283666,28718765,10.7554/eLife.26975
+74759,MBON-14-A-54977,mushroom_body/output_neurons_MBON,FlyEM,principal cell|output neuron,protocerebrum|mushroom body|alpha,drosophila melanogaster,756908,28718765,10.7554/eLife.26975
+74760,MBON-14-B-10563,mushroom_body/output_neurons_MBON,FlyEM,principal cell|output neuron,protocerebrum|mushroom body|alpha,drosophila melanogaster,955518,28718765,10.7554/eLife.26975
+74761,MBON-18-616459,mushroom_body/output_neurons_MBON,FlyEM,principal cell|output neuron,protocerebrum|mushroom body|alpha,drosophila melanogaster,955889,28718765,10.7554/eLife.26975
+74762,MBON-19-A-1661302,mushroom_body/output_neurons_MBON,FlyEM,principal cell|output neuron,protocerebrum|mushroom body|alpha,drosophila melanogaster,301790,28718765,10.7554/eLife.26975
+74763,MBON-19-B-1661230,mushroom_body/output_neurons_MBON,FlyEM,principal cell|output neuron,protocerebrum|mushroom body|alpha,drosophila melanogaster,250417,28718765,10.7554/eLife.26975
+74764,MBON-X-3391197,mushroom_body/output_neurons_MBON,FlyEM,principal cell|output neuron,protocerebrum|mushroom body|alpha,drosophila melanogaster,508099,28718765,10.7554/eLife.26975
+74765,MBON-17-A-alpha_prime-5189028,mushroom_body/output_neurons_MBON,FlyEM,principal cell|output neuron,protocerebrum|mushroom body|alpha-prime,drosophila melanogaster,222325,28718765,10.7554/eLife.26975
+74766,MBON-17-B-alpha_prime-4834094,mushroom_body/output_neurons_MBON,FlyEM,principal cell|output neuron,protocerebrum|mushroom body|alpha-prime,drosophila melanogaster,238910,28718765,10.7554/eLife.26975
+80878,MBON-a1right_10163418,mushroom_body/output_neurons_MBON,Cardona,principal cell|output neuron,protocerebrum|mushroom body|right,drosophila melanogaster,110750,28796202,10.1038/nature23455
+80879,MBON-a2right_15617305,mushroom_body/output_neurons_MBON,Cardona,principal cell|output neuron,protocerebrum|mushroom body|right,drosophila melanogaster,97766,28796202,10.1038/nature23455
+80880,MBON-b1right_8094859,mushroom_body/output_neurons_MBON,Cardona,principal cell|output neuron,protocerebrum|mushroom body|right,drosophila melanogaster,90719,28796202,10.1038/nature23455
+80881,MBON-b2right_9469519,mushroom_body/output_neurons_MBON,Cardona,principal cell|output neuron,protocerebrum|mushroom body|right,drosophila melanogaster,81150,28796202,10.1038/nature23455
+145268,3503851,mushroom_body/dopaminergic_neurons_DAN,Otto,principal cell|dopaminergic|crepine (CRE) projecting|output neuron|gamma4gamma5,protocerebrum|mushroom body,drosophila melanogaster,149321,32619479,10.1016/j.cub.2020.05.077
+74923,PAM-11-A-13723880,mushroom_body/dopaminergic_neurons_DAN,FlyEM,principal cell|dopaminergic|PAM,protocerebrum|mushroom body|alpha|alpha-1,drosophila melanogaster,51710,28718765,10.7554/eLife.26975
+74924,PAM-11-B-13719714,mushroom_body/dopaminergic_neurons_DAN,FlyEM,principal cell|dopaminergic|PAM,protocerebrum|mushroom body|alpha|alpha-1,drosophila melanogaster,62655,28718765,10.7554/eLife.26975
+74925,PAM-11-C-15282447,mushroom_body/dopaminergic_neurons_DAN,FlyEM,principal cell|dopaminergic|PAM,protocerebrum|mushroom body|alpha|alpha-1,drosophila melanogaster,65357,28718765,10.7554/eLife.26975
+74926,PAM-11-D-14372907,mushroom_body/dopaminergic_neurons_DAN,FlyEM,principal cell|dopaminergic|PAM,protocerebrum|mushroom body|alpha|alpha-1,drosophila melanogaster,55777,28718765,10.7554/eLife.26975
+74927,PAM-11-E-14301234,mushroom_body/dopaminergic_neurons_DAN,FlyEM,principal cell|dopaminergic|PAM,protocerebrum|mushroom body|alpha|alpha-1,drosophila melanogaster,55043,28718765,10.7554/eLife.26975
+74928,PAM-11-F-14456457,mushroom_body/dopaminergic_neurons_DAN,FlyEM,principal cell|dopaminergic|PAM,protocerebrum|mushroom body|alpha|alpha-1,drosophila melanogaster,45427,28718765,10.7554/eLife.26975
+74929,PAM-11-G-13985691,mushroom_body/dopaminergic_neurons_DAN,FlyEM,principal cell|dopaminergic|PAM,protocerebrum|mushroom body|alpha|alpha-1,drosophila melanogaster,39019,28718765,10.7554/eLife.26975
+74930,PAM-11-H-13911955,mushroom_body/dopaminergic_neurons_DAN,FlyEM,principal cell|dopaminergic|PAM,protocerebrum|mushroom body|alpha|alpha-1,drosophila melanogaster,41884,28718765,10.7554/eLife.26975
+74931,PAM-11-I-15138572,mushroom_body/dopaminergic_neurons_DAN,FlyEM,principal cell|dopaminergic|PAM,protocerebrum|mushroom body|alpha|alpha-1,drosophila melanogaster,52323,28718765,10.7554/eLife.26975
+74932,PAM-11-J-14468842,mushroom_body/dopaminergic_neurons_DAN,FlyEM,principal cell|dopaminergic|PAM,protocerebrum|mushroom body|alpha|alpha-1,drosophila melanogaster,29723,28718765,10.7554/eLife.26975
+74933,PAM-11-K-16534021,mushroom_body/dopaminergic_neurons_DAN,FlyEM,principal cell|dopaminergic|PAM,protocerebrum|mushroom body|alpha|alpha-1,drosophila melanogaster,29264,28718765,10.7554/eLife.26975
+74934,PAM-11-L-16591479,mushroom_body/dopaminergic_neurons_DAN,FlyEM,principal cell|dopaminergic|PAM,protocerebrum|mushroom body|alpha|alpha-1,drosophila melanogaster,44930,28718765,10.7554/eLife.26975
+74935,PAM-11-M-15832059,mushroom_body/dopaminergic_neurons_DAN,FlyEM,principal cell|dopaminergic|PAM,protocerebrum|mushroom body|alpha|alpha-1,drosophila melanogaster,50062,28718765,10.7554/eLife.26975
+74936,PAM-11-N-16578151,mushroom_body/dopaminergic_neurons_DAN,FlyEM,principal cell|dopaminergic|PAM,protocerebrum|mushroom body|alpha|alpha-1,drosophila melanogaster,30452,28718765,10.7554/eLife.26975
+74937,PAM-11-O-15809740,mushroom_body/dopaminergic_neurons_DAN,FlyEM,principal cell|dopaminergic|PAM,protocerebrum|mushroom body|alpha|alpha-1,drosophila melanogaster,21433,28718765,10.7554/eLife.26975
+74938,PAM-11-P-146628272,mushroom_body/dopaminergic_neurons_DAN,FlyEM,principal cell|dopaminergic|PAM,protocerebrum|mushroom body|alpha|alpha-1,drosophila melanogaster,22401,28718765,10.7554/eLife.26975
+74939,PPL1-05-A-9891156,mushroom_body/dopaminergic_neurons_DAN,FlyEM,principal cell|dopaminergic|PPL1,protocerebrum|mushroom body|alpha|alpha-3,drosophila melanogaster,208515,28718765,10.7554/eLife.26975
+74940,PPL1-05-B-8196428,mushroom_body/dopaminergic_neurons_DAN,FlyEM,principal cell|dopaminergic|PPL1,protocerebrum|mushroom body|alpha|alpha-3,drosophila melanogaster,234085,28718765,10.7554/eLife.26975
+74941,PPL1-06-A-43752,mushroom_body/dopaminergic_neurons_DAN,FlyEM,principal cell|dopaminergic|PPL1,protocerebrum|mushroom body|alpha|alpha-2,drosophila melanogaster,265706,28718765,10.7554/eLife.26975
+74942,PPL1-06-B-124367,mushroom_body/dopaminergic_neurons_DAN,FlyEM,principal cell|dopaminergic|PPL1,protocerebrum|mushroom body|alpha|alpha-2,drosophila melanogaster,319321,28718765,10.7554/eLife.26975
+80638,DAN-c1right_16240569,mushroom_body/dopaminergic_neurons_DAN,Cardona,principal cell|dopaminergic,protocerebrum|mushroom body|right,drosophila melanogaster,114302,28796202,10.1038/nature23455
+80639,DAN-d1right_5966099,mushroom_body/dopaminergic_neurons_DAN,Cardona,principal cell|dopaminergic,protocerebrum|mushroom body|right,drosophila melanogaster,199021,28796202,10.1038/nature23455
+80640,DAN-f1right_2506050,mushroom_body/dopaminergic_neurons_DAN,Cardona,principal cell|dopaminergic,protocerebrum|mushroom body|right,drosophila melanogaster,119244,28796202,10.1038/nature23455
+80641,DAN-g1right_10673895,mushroom_body/dopaminergic_neurons_DAN,Cardona,principal cell|dopaminergic,protocerebrum|mushroom body|right,drosophila melanogaster,146521,28796202,10.1038/nature23455
+80642,DAN-i1right_6611894,mushroom_body/dopaminergic_neurons_DAN,Cardona,principal cell|dopaminergic,protocerebrum|mushroom body|right,drosophila melanogaster,121936,28796202,10.1038/nature23455
+80643,DAN-j1right_4414184,mushroom_body/dopaminergic_neurons_DAN,Cardona,principal cell|dopaminergic,protocerebrum|mushroom body|right,drosophila melanogaster,132502,28796202,10.1038/nature23455
+80644,DAN-k1right_4884579,mushroom_body/dopaminergic_neurons_DAN,Cardona,principal cell|dopaminergic,protocerebrum|mushroom body|right,drosophila melanogaster,125108,28796202,10.1038/nature23455
+80645,DAN-c1left_15592096,mushroom_body/dopaminergic_neurons_DAN,Cardona,principal cell|dopaminergic,protocerebrum|mushroom body|left,drosophila melanogaster,125937,28796202,10.1038/nature23455
+80646,DAN-d1left_3886356,mushroom_body/dopaminergic_neurons_DAN,Cardona,principal cell|dopaminergic,protocerebrum|mushroom body|left,drosophila melanogaster,175274,28796202,10.1038/nature23455
+80647,DAN-f1left_7901791,mushroom_body/dopaminergic_neurons_DAN,Cardona,principal cell|dopaminergic,protocerebrum|mushroom body|left,drosophila melanogaster,111689,28796202,10.1038/nature23455
+80648,DAN-g1left_4381377,mushroom_body/dopaminergic_neurons_DAN,Cardona,principal cell|dopaminergic,protocerebrum|mushroom body|left,drosophila melanogaster,136645,28796202,10.1038/nature23455
+80649,DAN-i1left_7057894,mushroom_body/dopaminergic_neurons_DAN,Cardona,principal cell|dopaminergic,protocerebrum|mushroom body|left,drosophila melanogaster,113634,28796202,10.1038/nature23455
+80650,DAN-j1left_4414163,mushroom_body/dopaminergic_neurons_DAN,Cardona,principal cell|dopaminergic,protocerebrum|mushroom body|left,drosophila melanogaster,113509,28796202,10.1038/nature23455
+80651,DAN-k1left_12871993,mushroom_body/dopaminergic_neurons_DAN,Cardona,principal cell|dopaminergic,protocerebrum|mushroom body|left,drosophila melanogaster,129082,28796202,10.1038/nature23455
+104538,block_203840,mushroom_body/inhibitory_APL,Bock,principal cell|GABAergic|anterior paired lateral-(APL)|Inhibitory,protocerebrum|mushroom body,drosophila melanogaster,3713829,30033368,10.1016/j.cell.2018.06.019
+74747,MB-APL-2,mushroom_body/inhibitory_APL,FlyEM,principal cell|GABAergic|anterior paired lateral-(APL),protocerebrum|mushroom body|alpha,drosophila melanogaster,991501,28718765,10.7554/eLife.26975
+80623,APLright_3234817,mushroom_body/inhibitory_APL,Cardona,principal cell|anterior paired lateral neuron,protocerebrum|mushroom body|right,drosophila melanogaster,181909,28796202,10.1038/nature23455
+80624,APLleft_15571194,mushroom_body/inhibitory_APL,Cardona,principal cell|anterior paired lateral neuron,protocerebrum|mushroom body|left,drosophila melanogaster,127079,28796202,10.1038/nature23455

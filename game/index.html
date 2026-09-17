@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>초파리 뇌 학습 실험실</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>🪰 초파리 뇌 학습 실험실</h1>
+    <nav class="tabs">
+      <button class="tab is-active" data-tab="scent">향기 추적</button>
+      <button class="tab" data-tab="mines">지뢰찾기</button>
+    </nav>
+  </header>
+
+  <section class="tab-panel is-active" id="panel-scent">
+    <p class="subtitle">
+      후각엽(PN) → 버섯체 케니언세포(KC, 희소코딩) → 도파민(DAN) 보상신호 → 출력뉴런(MBON) 구조를 그대로 본뜬 에이전트가
+      향기를 따라 다이아몬드를 찾아갑니다.
+    </p>
+    <main>
+      <section class="board-section">
+        <canvas id="board" width="440" height="440"></canvas>
+        <div class="legend">
+          <span><i class="dot fly"></i> 초파리</span>
+          <span><i class="dot gem"></i> 다이아몬드</span>
+          <span><i class="dot scent"></i> 향기 농도 (돌 → 발광)</span>
+        </div>
+      </section>
+
+      <aside class="panel">
+        <div class="controls">
+          <button id="btnStart">▶ 학습 시작</button>
+          <button id="btnStep">⏭ 한 스텝</button>
+          <button id="btnReset">🔄 새 에피소드</button>
+        </div>
+        <div class="controls">
+          <label>속도
+            <input type="range" id="speed" min="1" max="200" value="40" />
+          </label>
+          <label class="checkbox">
+            <input type="checkbox" id="randomGem" checked />
+            매 에피소드 보석 위치 무작위
+          </label>
+        </div>
+
+        <div class="stats">
+          <div class="stat"><span>에피소드</span><b id="stEpisode">0</b></div>
+          <div class="stat"><span>스텝</span><b id="stStep">0</b></div>
+          <div class="stat"><span>탐험률 (ε)</span><b id="stEps">1.00</b></div>
+          <div class="stat"><span>도파민 신호 (TD-error)</span><b id="stDopamine">0.00</b></div>
+          <div class="stat"><span>최근 100 에피소드 성공률</span><b id="stSuccess">0%</b></div>
+          <div class="stat"><span>최근 100 에피소드 평균 스텝</span><b id="stAvgSteps">-</b></div>
+        </div>
+
+        <h3>에피소드별 보상 추이</h3>
+        <canvas id="chart" width="320" height="140"></canvas>
+      </aside>
+    </main>
+  </section>
+
+  <section class="tab-panel" id="panel-mines">
+    <p class="subtitle">
+      같은 뇌 구조로 지뢰찾기를 학습합니다. 후보 칸 주변 5x5를 후각 입력처럼 받아 KC로 희소하게 펼치고,
+      열어본 결과(안전/지뢰)를 도파민 신호로 삼아 각 칸의 안전도를 배웁니다. 직접 플레이도 됩니다 —
+      좌클릭 열기, 우클릭 깃발.
+    </p>
+    <main>
+      <section class="board-section">
+        <canvas id="mineBoard" width="432" height="432"></canvas>
+        <div class="legend">
+          <span id="msStatus">진행률 0%</span>
+          <span><i class="dot safe"></i> 안전 예측</span>
+          <span><i class="dot danger"></i> 지뢰 예측</span>
+        </div>
+      </section>
+
+      <aside class="panel">
+        <div class="controls">
+          <button id="msBtnAi">AI 학습 시작</button>
+          <button id="msBtnMove">⏭ 한 수</button>
+          <button id="msBtnNew">🔄 새 판</button>
+        </div>
+        <div class="controls">
+          <label>속도
+            <input type="range" id="msSpeed" min="1" max="300" value="120" />
+          </label>
+          <label class="checkbox">
+            <input type="checkbox" id="msShowSafety" checked />
+            AI 안전도 예측 표시
+          </label>
+        </div>
+
+        <div class="stats">
+          <div class="stat"><span>플레이한 판</span><b id="msGames">0</b></div>
+          <div class="stat"><span>클리어</span><b id="msWins">0</b></div>
+          <div class="stat"><span>최근 100판 승률</span><b id="msWinRate">0%</b></div>
+          <div class="stat"><span>최근 100판 평균 개방률</span><b id="msProgress">0%</b></div>
+          <div class="stat"><span>도파민 신호</span><b id="msDopamine">0.00</b></div>
+          <div class="stat"><span>탐험률 (ε)</span><b id="msEps">0.20</b></div>
+        </div>
+
+        <h3>20판 단위 승률 / 평균 개방률</h3>
+        <canvas id="mineChart" width="320" height="140"></canvas>
+      </aside>
+    </main>
+  </section>
+
+  <footer>
+    데이터: <code>data/drosophila_neurons</code> (NeuroMorpho.org) — 이 폴더의 실제 후각엽/버섯체 뉴런 형태 데이터가 이 에이전트 구조 설계의 근거입니다.
+    폰트: Neo둥근모 (SIL OFL 1.1)
+  </footer>
+
+  <script src="env.js"></script>
+  <script src="agent.js"></script>
+  <script src="main.js"></script>
+  <script src="minesweeper.js"></script>
+  <script src="minesweeper-ui.js"></script>
+  <script src="tabs.js"></script>
+</body>
+</html>

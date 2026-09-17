@@ -1,0 +1,242 @@
+/* Neo둥근모 (NeoDunggeunmo) — SIL Open Font License 1.1, fonts/LICENSE.txt 참고 */
+@font-face {
+  font-family: "NeoDunggeunmo";
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+  src: url("fonts/neodgm.woff2") format("woff2"),
+       url("fonts/neodgm.woff") format("woff");
+}
+
+:root {
+  --bg: #1b1b1f;
+  --panel: #4a4a52;
+  --panel-hi: #6e6e78;
+  --panel-lo: #29292e;
+  --slot: #2c2c31;
+  --text: #eef1f5;
+  --muted: #b6b6c0;
+  --accent: #4fd8e0;
+  --gem-top: #a9f6f1;
+  --gem-left: #3fb8c4;
+  --gem-right: #1f7c8a;
+  --fly-body: #8a5a24;
+}
+
+* { box-sizing: border-box; image-rendering: pixelated; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  background-image:
+    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--text);
+  /* 비트맵 폰트라 16의 배수 크기에서 가장 또렷하게 찍힌다 */
+  font-family: "NeoDunggeunmo", monospace;
+  font-size: 16px;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: unset;
+  font-smooth: never;
+  padding: 24px;
+}
+
+header h1 {
+  margin: 0 0 10px;
+  font-size: 32px;
+  line-height: 1.4;
+  text-shadow: 2px 2px 0 #000;
+}
+.subtitle {
+  margin: 0 0 20px;
+  color: var(--muted);
+  font-size: 16px;
+  max-width: 720px;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+.tab {
+  background: #3a3a42;
+  color: var(--muted);
+  border-top: 3px solid #55555f;
+  border-left: 3px solid #55555f;
+  border-right: 3px solid var(--panel-lo);
+  border-bottom: 3px solid var(--panel-lo);
+  padding: 10px 20px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 16px;
+}
+.tab:hover { color: var(--text); }
+.tab.is-active {
+  background: var(--panel);
+  color: var(--accent);
+  border-top-color: var(--panel-hi);
+  border-left-color: var(--panel-hi);
+}
+
+.tab-panel { display: none; }
+.tab-panel.is-active { display: block; }
+
+main {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+/* 돌 블록 패널: 위/왼쪽은 밝게, 아래/오른쪽은 어둡게 -> 베벨(입체) 효과 */
+.board-section,
+.panel {
+  background: var(--panel);
+  border-top: 4px solid var(--panel-hi);
+  border-left: 4px solid var(--panel-hi);
+  border-right: 4px solid var(--panel-lo);
+  border-bottom: 4px solid var(--panel-lo);
+  border-radius: 0;
+  padding: 16px;
+}
+
+canvas#board {
+  display: block;
+  border: 4px solid var(--panel-lo);
+  background: #000;
+}
+
+.legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+  font-size: 16px;
+  color: var(--muted);
+}
+.legend .dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 4px;
+  vertical-align: middle;
+  border: 1px solid #000;
+}
+.dot.fly { background: var(--fly-body); }
+.dot.gem { background: var(--gem-top); }
+.dot.scent { background: var(--gem-right); }
+.dot.safe { background: #3cd25a; }
+.dot.danger { background: #dc3c5a; }
+
+canvas#mineBoard {
+  display: block;
+  border: 4px solid var(--panel-lo);
+  background: #33333b;
+  cursor: pointer;
+}
+
+.panel {
+  min-width: 320px;
+  flex: 1;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+button {
+  background: var(--panel);
+  color: var(--text);
+  border-top: 3px solid var(--panel-hi);
+  border-left: 3px solid var(--panel-hi);
+  border-right: 3px solid var(--panel-lo);
+  border-bottom: 3px solid var(--panel-lo);
+  border-radius: 0;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 16px;
+}
+button:hover { background: #55555f; color: var(--accent); }
+button:active {
+  border-top: 3px solid var(--panel-lo);
+  border-left: 3px solid var(--panel-lo);
+  border-right: 3px solid var(--panel-hi);
+  border-bottom: 3px solid var(--panel-hi);
+}
+
+label {
+  font-size: 16px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+label.checkbox { flex-direction: row-reverse; }
+
+input[type="range"] {
+  accent-color: var(--accent);
+}
+input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 14px 0 20px;
+}
+.stat {
+  background: var(--slot);
+  border-top: 2px solid #000;
+  border-left: 2px solid #000;
+  border-right: 2px solid #55555f;
+  border-bottom: 2px solid #55555f;
+  padding: 8px 10px;
+}
+.stat span {
+  display: block;
+  font-size: 16px;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+.stat b {
+  font-size: 24px;
+  color: var(--accent);
+  font-weight: normal;
+}
+
+h3 {
+  font-size: 16px;
+  color: var(--muted);
+  margin: 0 0 10px;
+  font-weight: normal;
+}
+
+canvas#chart {
+  width: 100%;
+  background: var(--slot);
+  border-top: 2px solid #000;
+  border-left: 2px solid #000;
+  border-right: 2px solid #55555f;
+  border-bottom: 2px solid #55555f;
+}
+
+footer {
+  margin-top: 20px;
+  color: var(--muted);
+  font-size: 16px;
+}
+footer code {
+  background: var(--slot);
+  padding: 2px 6px;
+  border: 1px solid #000;
+}
