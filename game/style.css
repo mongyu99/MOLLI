@@ -230,6 +230,310 @@ canvas#chart {
   border-bottom: 2px solid #55555f;
 }
 
+/* 전체 레이아웃: 탭 내용 + 오른쪽 몰리 칼럼 */
+.layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+.panels { flex: 1; min-width: 0; }
+
+.molli-column {
+  flex: 0 0 auto;
+  width: 248px;
+  background: var(--panel);
+  border-top: 4px solid var(--panel-hi);
+  border-left: 4px solid var(--panel-hi);
+  border-right: 4px solid var(--panel-lo);
+  border-bottom: 4px solid var(--panel-lo);
+  padding: 0 0 8px;
+  position: sticky;
+  top: 20px;
+}
+.molli-bar {
+  padding: 4px 10px;
+  background: var(--slot);
+  color: var(--accent);
+  font-size: 16px;
+}
+#molliCanvas {
+  display: block;
+  width: 232px;
+  height: 271px;
+  margin: 6px auto 0;
+  background: linear-gradient(#2b3348, #1d2333);
+}
+.molli-caption {
+  margin: 8px 10px 0;
+  color: var(--muted);
+  font-size: 16px;
+  text-align: center;
+}
+
+/* 추론 로그 */
+.log {
+  height: 190px;
+  overflow-y: auto;
+  background: var(--slot);
+  border-top: 2px solid #000;
+  border-left: 2px solid #000;
+  border-right: 2px solid #55555f;
+  border-bottom: 2px solid #55555f;
+  padding: 6px 8px;
+  margin-bottom: 18px;
+  font-size: 16px;
+  line-height: 1.45;
+}
+.log-row {
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  color: #c9cfda;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.log-row .tag { color: var(--accent); }
+.log-row .pick { color: #ffd479; }
+.log-row .good { color: #7fd858; }
+.log-row .bad { color: #ff7b6b; }
+.log-row .dim { color: #8b8b96; }
+.log-hit { background: rgba(255,123,107,0.13); }
+.log-win { background: rgba(127,216,88,0.13); }
+.log-muted { color: var(--muted); }
+
+/* 뱀서 탭 위쪽: 몰리 + 게임 화면 */
+.vs-outer { display: block; }
+.vs-top {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+.vs-molli-slot { flex: 0 0 auto; }
+/* 위쪽 줄 안에서는 따라다니지 않는다 (오른쪽 칼럼일 때만 sticky) */
+.vs-top .molli-column { position: static; top: auto; }
+/* 게임 화면 옆에 상태·버튼을 세로로 둔다. 좁은 창에서는 아래로 떨어진다. */
+.vs-screen {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+/* 화면은 720px 에서 멈춘다. 더 늘어나면 오른쪽 패널과 사이가 벌어진다. */
+.vs-view-col { flex: 0 1 720px; min-width: 0; }
+.vs-side { flex: 0 1 330px; min-width: 280px; }
+.vs-side .legend { margin-top: 0; margin-bottom: 10px; }
+.vs-side .controls { margin-bottom: 10px; }
+.vs-side .controls button { padding: 8px 12px; }
+.vs-side input#vsWindow { width: 150px !important; }
+.vs-side .stats {
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 10px 0 0;
+}
+.vs-side .stat { padding: 5px 8px; }
+.vs-side .stat b { font-size: 18px; }
+
+.vs-screen {
+  flex: 1;
+  min-width: 0;
+  background: var(--panel);
+  border-top: 4px solid var(--panel-hi);
+  border-left: 4px solid var(--panel-hi);
+  border-right: 4px solid var(--panel-lo);
+  border-bottom: 4px solid var(--panel-lo);
+  padding: 16px;
+}
+
+/* 뱀서 탭: 왼쪽 메뉴 + 가운데 큰 화면 */
+.vs-layout {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.vs-menu {
+  flex: 0 0 auto;
+  width: 172px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: sticky;
+  top: 20px;
+}
+.vs-menu-btn {
+  text-align: left;
+  padding: 12px 14px;
+  background: var(--slot);
+  color: var(--muted);
+  border-top: 3px solid #4a4a54;
+  border-left: 3px solid #4a4a54;
+  border-right: 3px solid #17171c;
+  border-bottom: 3px solid #17171c;
+}
+.vs-menu-btn:hover { color: var(--text); background: var(--panel); }
+.vs-menu-btn.is-active {
+  background: var(--panel);
+  color: var(--accent);
+  border-top-color: var(--panel-hi);
+  border-left-color: var(--panel-hi);
+  border-right-color: var(--panel-lo);
+  border-bottom-color: var(--panel-lo);
+}
+
+.vs-main {
+  flex: 1;
+  min-width: 0;
+  background: var(--panel);
+  border-top: 4px solid var(--panel-hi);
+  border-left: 4px solid var(--panel-hi);
+  border-right: 4px solid var(--panel-lo);
+  border-bottom: 4px solid var(--panel-lo);
+  padding: 16px;
+}
+
+canvas#vsSight {
+  display: block;
+  width: 100%;
+  max-width: 720px;
+  height: auto;
+  margin-top: 10px;
+  border: 4px solid var(--panel-lo);
+}
+.vs-table {
+  width: 100%;
+  max-width: 720px;
+  margin-top: 10px;
+  border-collapse: collapse;
+  background: var(--slot);
+  font-size: 16px;
+}
+.vs-table th, .vs-table td {
+  padding: 4px 8px;
+  text-align: right;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.vs-table th { color: var(--muted); font-weight: normal; }
+.vs-table td:first-child, .vs-table th:first-child { text-align: left; }
+.vs-table tr.picked td { color: #ffd479; background: rgba(255,212,121,0.08); }
+
+/* 고른 메뉴의 내용만 보인다 */
+.vs-sec { display: none; }
+.vs-sec.is-active { display: block; }
+
+/* 세로로 긴 내용은 잘라서 스크롤 — 한 화면을 넘기지 않게 */
+.vs-scroll {
+  max-height: 340px;
+  overflow-y: auto;
+}
+.log-tall { height: 380px; }
+
+/* 뱀서 탭 */
+canvas#vsView {
+  display: block;
+  width: 100%;
+  max-width: 720px;
+  height: auto;
+  border: 4px solid var(--panel-lo);
+  background: #10141c;
+}
+.vs-status { color: var(--muted); }
+.vs-status.ok { color: #7fd858; }
+.vs-status.bad { color: #ff7b6b; }
+.vs-help {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: var(--slot);
+  border: 2px solid #000;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.5;
+}
+/* 파일 고르기를 버튼처럼 보이게 */
+.filebtn {
+  display: inline-block;
+  padding: 6px 12px;
+  cursor: pointer;
+  color: var(--text);
+  background: var(--panel);
+  border: 2px solid var(--panel-hi);
+  border-right-color: var(--panel-lo);
+  border-bottom-color: var(--panel-lo);
+}
+.filebtn:hover { background: var(--panel-hi); }
+
+/* 사용자가 직접 만든 화면 종류. 기본 여섯 개와 구분되게 둔다. */
+button.is-mine {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.vs-fold {
+  margin-top: 12px;
+  background: var(--slot);
+  border: 2px solid #000;
+}
+.vs-fold > summary {
+  padding: 8px 10px;
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 16px;
+  list-style: none;
+  user-select: none;
+}
+.vs-fold > summary::-webkit-details-marker { display: none; }
+.vs-fold > summary::before { content: "▸ "; }
+.vs-fold[open] > summary::before { content: "▾ "; }
+.vs-fold > summary:hover { background: var(--panel-lo); }
+.vs-fold > *:not(summary) { margin-left: 10px; margin-right: 10px; }
+.vs-fold > *:last-child { margin-bottom: 10px; }
+.vs-fold h4 {
+  margin: 12px 10px 0;
+  color: var(--text);
+  font-size: 16px;
+}
+
+.vs-goal {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 10px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--slot);
+  border: 2px solid #000;
+  resize: vertical;
+}
+.vs-goal:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.vs-goal::placeholder { color: var(--muted); opacity: 0.7; }
+
+.vs-help code {
+  background: #000;
+  padding: 1px 5px;
+  color: var(--accent);
+}
+b.tune { color: var(--accent); min-width: 28px; }
+button.is-active {
+  background: var(--accent);
+  color: #10141c;
+}
+.hidden-stat { display: none; }
+
+.chart-readout {
+  margin-top: -10px;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 16px;
+  min-height: 22px;
+}
+
+canvas#chart, canvas#mineChart { cursor: crosshair; }
+
 footer {
   margin-top: 20px;
   color: var(--muted);

@@ -61,14 +61,11 @@ class FlyBrain {
   act(obs, epsilon) {
     const activeKC = this.encode(obs);
     const q = this.qValues(activeKC);
-    let action;
-    if (Math.random() < epsilon) {
-      action = Math.floor(Math.random() * this.nActions);
-    } else {
-      action = 0;
-      for (let a = 1; a < this.nActions; a++) if (q[a] > q[action]) action = a;
-    }
-    return { action, activeKC, q };
+    let best = 0;
+    for (let a = 1; a < this.nActions; a++) if (q[a] > q[best]) best = a;
+    const explored = Math.random() < epsilon;
+    const action = explored ? Math.floor(Math.random() * this.nActions) : best;
+    return { action, activeKC, q, explored, best };
   }
 
   // 도파민(DAN) 매개 가소성: TD-error를 보상예측오차로 사용해 활성 KC->MBON 시냅스만 갱신

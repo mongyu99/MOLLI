@@ -12,112 +12,460 @@
     <nav class="tabs">
       <button class="tab is-active" data-tab="scent">향기 추적</button>
       <button class="tab" data-tab="mines">지뢰찾기</button>
+      <button class="tab" data-tab="vamp">뱀서 (화면 조작)</button>
     </nav>
   </header>
 
-  <section class="tab-panel is-active" id="panel-scent">
-    <p class="subtitle">
-      후각엽(PN) → 버섯체 케니언세포(KC, 희소코딩) → 도파민(DAN) 보상신호 → 출력뉴런(MBON) 구조를 그대로 본뜬 에이전트가
-      향기를 따라 다이아몬드를 찾아갑니다.
-    </p>
-    <main>
-      <section class="board-section">
-        <canvas id="board" width="440" height="440"></canvas>
-        <div class="legend">
-          <span><i class="dot fly"></i> 초파리</span>
-          <span><i class="dot gem"></i> 다이아몬드</span>
-          <span><i class="dot scent"></i> 향기 농도 (돌 → 발광)</span>
-        </div>
+  <div class="layout">
+    <div class="panels">
+      <section class="tab-panel is-active" id="panel-scent">
+        <p class="subtitle">
+          후각엽(PN) → 버섯체 케니언세포(KC, 희소코딩) → 도파민(DAN) 보상신호 → 출력뉴런(MBON) 구조를 그대로 본뜬 에이전트가
+          향기를 따라 다이아몬드를 찾아갑니다.
+        </p>
+        <main>
+          <section class="board-section">
+            <canvas id="board" width="440" height="440"></canvas>
+            <div class="legend">
+              <span><i class="dot fly"></i> 초파리</span>
+              <span><i class="dot gem"></i> 다이아몬드</span>
+              <span><i class="dot scent"></i> 향기 농도 (돌 → 발광)</span>
+            </div>
+          </section>
+
+          <aside class="panel">
+            <div class="controls">
+              <button id="btnStart">▶ 학습 시작</button>
+              <button id="btnStep">⏭ 한 스텝</button>
+              <button id="btnReset">🔄 새 에피소드</button>
+            </div>
+            <div class="controls">
+              <label>속도
+                <input type="range" id="speed" min="1" max="200" value="40" />
+              </label>
+              <label class="checkbox">
+                <input type="checkbox" id="randomGem" checked />
+                보석 위치 무작위
+              </label>
+              <label class="checkbox">
+                <input type="checkbox" id="scentLogOn" checked />
+                로그 기록
+              </label>
+            </div>
+
+            <div class="stats">
+              <div class="stat"><span>에피소드</span><b id="stEpisode">0</b></div>
+              <div class="stat"><span>스텝</span><b id="stStep">0</b></div>
+              <div class="stat"><span>탐험률 (ε)</span><b id="stEps">1.00</b></div>
+              <div class="stat"><span>도파민 신호 (TD-error)</span><b id="stDopamine">0.00</b></div>
+              <div class="stat"><span>최근 100 성공률</span><b id="stSuccess">0%</b></div>
+              <div class="stat"><span>최근 100 평균 스텝</span><b id="stAvgSteps">-</b></div>
+            </div>
+
+            <h3>추론 로그 — 왜 그쪽으로 갔나</h3>
+            <div class="log" id="scentLog"></div>
+
+            <h3>에피소드별 보상</h3>
+            <canvas id="chart" height="220"></canvas>
+            <div class="chart-readout" id="chartReadout">그래프에 마우스를 올리면 해당 에피소드 값이 표시됩니다</div>
+          </aside>
+        </main>
       </section>
 
-      <aside class="panel">
-        <div class="controls">
-          <button id="btnStart">▶ 학습 시작</button>
-          <button id="btnStep">⏭ 한 스텝</button>
-          <button id="btnReset">🔄 새 에피소드</button>
-        </div>
-        <div class="controls">
-          <label>속도
-            <input type="range" id="speed" min="1" max="200" value="40" />
-          </label>
-          <label class="checkbox">
-            <input type="checkbox" id="randomGem" checked />
-            매 에피소드 보석 위치 무작위
-          </label>
-        </div>
+      <section class="tab-panel" id="panel-mines">
+        <p class="subtitle">
+          같은 뇌 구조로 지뢰찾기를 학습합니다. 후보 칸의 국소 단서를 후각 입력처럼 받아 KC로 희소하게 펼치고,
+          열어본 결과(안전/지뢰)를 도파민 신호로 삼아 각 칸의 안전도를 배웁니다.
+          직접 플레이도 됩니다 — 좌클릭 열기, 우클릭 깃발.
+        </p>
+        <main>
+          <section class="board-section">
+            <canvas id="mineBoard" width="432" height="432"></canvas>
+            <div class="legend">
+              <span id="msStatus">진행률 0%</span>
+              <span><i class="dot safe"></i> 안전 예측</span>
+              <span><i class="dot danger"></i> 지뢰 예측</span>
+            </div>
+          </section>
 
-        <div class="stats">
-          <div class="stat"><span>에피소드</span><b id="stEpisode">0</b></div>
-          <div class="stat"><span>스텝</span><b id="stStep">0</b></div>
-          <div class="stat"><span>탐험률 (ε)</span><b id="stEps">1.00</b></div>
-          <div class="stat"><span>도파민 신호 (TD-error)</span><b id="stDopamine">0.00</b></div>
-          <div class="stat"><span>최근 100 에피소드 성공률</span><b id="stSuccess">0%</b></div>
-          <div class="stat"><span>최근 100 에피소드 평균 스텝</span><b id="stAvgSteps">-</b></div>
-        </div>
+          <aside class="panel">
+            <div class="controls">
+              <button id="msBtnAi">AI 학습 시작</button>
+              <button id="msBtnMove">⏭ 한 수</button>
+              <button id="msBtnNew">🔄 새 판</button>
+            </div>
+            <div class="controls">
+              <label>속도
+                <input type="range" id="msSpeed" min="1" max="300" value="120" />
+              </label>
+              <label class="checkbox">
+                <input type="checkbox" id="msShowSafety" checked />
+                안전도 표시
+              </label>
+              <label class="checkbox">
+                <input type="checkbox" id="msLogOn" checked />
+                로그 기록
+              </label>
+            </div>
 
-        <h3>에피소드별 보상 추이</h3>
-        <canvas id="chart" width="320" height="140"></canvas>
-      </aside>
-    </main>
-  </section>
+            <div class="stats">
+              <div class="stat"><span>플레이한 판</span><b id="msGames">0</b></div>
+              <div class="stat"><span>클리어</span><b id="msWins">0</b></div>
+              <div class="stat"><span>최근 100판 승률</span><b id="msWinRate">0%</b></div>
+              <div class="stat"><span>최근 100판 개방률</span><b id="msProgress">0%</b></div>
+              <div class="stat"><span>도파민 신호</span><b id="msDopamine">0.00</b></div>
+              <div class="stat"><span>탐험률 (ε)</span><b id="msEps">0.08</b></div>
+            </div>
 
-  <section class="tab-panel" id="panel-mines">
-    <p class="subtitle">
-      같은 뇌 구조로 지뢰찾기를 학습합니다. 후보 칸 주변 5x5를 후각 입력처럼 받아 KC로 희소하게 펼치고,
-      열어본 결과(안전/지뢰)를 도파민 신호로 삼아 각 칸의 안전도를 배웁니다. 직접 플레이도 됩니다 —
-      좌클릭 열기, 우클릭 깃발.
-    </p>
-    <main>
-      <section class="board-section">
-        <canvas id="mineBoard" width="432" height="432"></canvas>
-        <div class="legend">
-          <span id="msStatus">진행률 0%</span>
-          <span><i class="dot safe"></i> 안전 예측</span>
-          <span><i class="dot danger"></i> 지뢰 예측</span>
-        </div>
+            <h3>추론 로그 — 왜 그 칸을 열었나</h3>
+            <div class="log" id="mineLog"></div>
+
+            <h3>20판 단위 승률 / 개방률 (%)</h3>
+            <canvas id="mineChart" height="220"></canvas>
+            <div class="chart-readout" id="mineChartReadout">그래프에 마우스를 올리면 해당 구간 값이 표시됩니다</div>
+          </aside>
+        </main>
       </section>
+      <section class="tab-panel" id="panel-vamp">
+        <p class="subtitle">
+          화면을 읽고 몰리 뇌가 방향을 정하면 <code>bot/bridge.py</code>가 실제 키를 누릅니다.
+          자세한 실행 순서는 왼쪽 <b>실행 방법</b>에 있습니다.
+        </p>
+        <main class="vs-outer">
+          <div class="vs-top">
+            <div class="vs-molli-slot" id="vsMolliSlot"></div>
+            <section class="vs-screen">
+              <div class="vs-view-col">
+                <canvas id="vsView" width="720" height="405"></canvas>
+              </div>
 
-      <aside class="panel">
-        <div class="controls">
-          <button id="msBtnAi">AI 학습 시작</button>
-          <button id="msBtnMove">⏭ 한 수</button>
-          <button id="msBtnNew">🔄 새 판</button>
-        </div>
-        <div class="controls">
-          <label>속도
-            <input type="range" id="msSpeed" min="1" max="300" value="120" />
-          </label>
-          <label class="checkbox">
-            <input type="checkbox" id="msShowSafety" checked />
-            AI 안전도 예측 표시
-          </label>
-        </div>
+              <div class="vs-side">
+              <div class="legend">
+                <span id="vsStatus" class="vs-status">화면 공유를 먼저 시작하세요</span>
+              </div>
 
-        <div class="stats">
-          <div class="stat"><span>플레이한 판</span><b id="msGames">0</b></div>
-          <div class="stat"><span>클리어</span><b id="msWins">0</b></div>
-          <div class="stat"><span>최근 100판 승률</span><b id="msWinRate">0%</b></div>
-          <div class="stat"><span>최근 100판 평균 개방률</span><b id="msProgress">0%</b></div>
-          <div class="stat"><span>도파민 신호</span><b id="msDopamine">0.00</b></div>
-          <div class="stat"><span>탐험률 (ε)</span><b id="msEps">0.20</b></div>
-        </div>
+              <div class="controls">
+                <button id="vsShare">화면 공유</button>
+                <button id="vsDemo">테스트 영상</button>
+                <button id="vsRun">▶ 조작 시작</button>
+                <button id="vsStop">■ 정지</button>
+                <label class="checkbox"><input type="checkbox" id="vsDebug" checked /> 인식 표시</label>
+                <label class="checkbox"><input type="checkbox" id="vsLogOn" checked /> 로그 기록</label>
+              </div>
 
-        <h3>20판 단위 승률 / 평균 개방률</h3>
-        <canvas id="mineChart" width="320" height="140"></canvas>
-      </aside>
-    </main>
-  </section>
+              <div class="controls">
+                <label>대상 창 <input type="text" id="vsWindow" placeholder="예: Vampire Survivors" style="width:190px" /></label>
+                <button id="vsWindowNow">지금 활성 창 넣기</button>
+              </div>
+              <div class="vs-help" id="vsWindowState">브릿지에 연결되면 확인할 수 있습니다</div>
+
+              <div class="stats">
+                <div class="stat"><span>인식한 화면</span><b id="vsState">-</b></div>
+                <div class="stat"><span>이번 판</span><b id="vsRunNow">-</b></div>
+                <div class="stat"><span>체력</span><b id="vsHp">-</b></div>
+                <div class="stat"><span>경험치</span><b id="vsXp">-</b></div>
+                <div class="stat"><span>가는 방향</span><b id="vsDir">-</b></div>
+                <div class="stat"><span>브릿지</span><b id="vsBridge">미연결</b></div>
+                <div class="stat"><span>입력 모드</span><b id="vsLive">-</b></div>
+                <div class="stat"><span>인식된 적</span><b id="vsEnemies">0</b></div>
+                <div class="stat"><span>인식된 젬</span><b id="vsGems">0</b></div>
+                <div class="stat"><span>분석 FPS</span><b id="vsFps">0</b></div>
+              </div>
+              </div>
+            </section>
+          </div>
+
+          <div class="vs-layout">
+          <nav class="vs-menu">
+            <button class="vs-menu-btn is-active" data-sec="log">추론 로그</button>
+            <button class="vs-menu-btn" data-sec="see">몰리 시야</button>
+            <button class="vs-menu-btn" data-sec="blind">블라인드 테스트</button>
+            <button class="vs-menu-btn" data-sec="read">레벨업 읽은 것</button>
+            <button class="vs-menu-btn" data-sec="goal">이번 판 목표</button>
+            <button class="vs-menu-btn" data-sec="screen">화면 설정</button>
+            <button class="vs-menu-btn" data-sec="llm">LLM</button>
+            <button class="vs-menu-btn" data-sec="stats">기록 · 통계</button>
+            <button class="vs-menu-btn" data-sec="tune">민감도</button>
+            <button class="vs-menu-btn" data-sec="help">실행 방법</button>
+          </nav>
+
+          <section class="vs-main">
+            <!-- ── 추론 로그 ─────────────────────────────── -->
+            <div class="vs-sec is-active" data-sec="log">
+              <h3>추론 로그 — 왜 그렇게 했나</h3>
+              <div class="vs-help">
+                줄마다 <b>몇 번째 판의 몇 분 몇 초</b>인지가 앞에 붙습니다.
+                나중에 기록을 되짚을 때 어느 판의 일인지 바로 알 수 있습니다.
+              </div>
+              <div class="log log-tall" id="vsLog"></div>
+            </div>
+
+            <!-- ── 몰리 시야 ─────────────────────────────── -->
+            <div class="vs-sec" data-sec="see">
+              <h3>몰리 시야 — 뇌가 실제로 받는 것</h3>
+              <div class="vs-help">
+                <b>왼쪽</b>은 화면을 24x24로 줄인 격자입니다. 빨강 = 적으로 센 곳, 파랑 = 젬으로 센 곳,
+                가운데 흰 점이 캐릭터. 몰리 뇌는 화면 픽셀이 아니라 <b>이 격자만</b> 봅니다.
+                <br /><b>오른쪽</b>은 8방향 점수입니다. 선이 길수록 그쪽을 좋게 본 것이고,
+                <span style="color:#ffd479">노란 굵은 선</span>이 시야로 고를 방향,
+                바깥 빨간 호가 위협이 있는 쪽입니다. 점선은 실제로 누른 방향 —
+                <span style="color:#7fd858">초록</span>이면 시야대로, <span style="color:#ff7b6b">빨강</span>이면 블라인드입니다.
+                <br />테스트 영상으로도 볼 수 있습니다. 이 칸이 열려 있을 때만 그려서 평소엔 부담이 없습니다.
+              </div>
+              <div class="controls">
+                <button id="vsDemoPause">테스트 영상 멈추기 (레벨업처럼)</button>
+              </div>
+              <canvas id="vsSight" width="720" height="300"></canvas>
+              <div class="vs-help" id="vsSightWhy">화면 공유나 테스트 영상을 켜면 여기에 나옵니다</div>
+              <table class="vs-table" id="vsSightTable"></table>
+            </div>
+
+            <!-- ── 블라인드 테스트 ───────────────────────── -->
+            <div class="vs-sec" data-sec="blind">
+              <h3>반응 검사 — 게임 없이 즉시</h3>
+              <div class="vs-help">
+                "적이 오른쪽에 몰렸다", "젬이 왼쪽에 있다" 같은 <b>인공 상황을 실제 판단 함수에 그대로 넣어</b>
+                고른 방향이 말이 되는지 봅니다. 같은 상황을 5번씩 넣어 <b>매번 같은 답</b>이 나오는지도 봅니다 —
+                무작위로 움직이는 것이라면 답이 흔들립니다.
+              </div>
+              <div class="controls">
+                <button id="vsProbeBtn">반응 검사 돌리기</button>
+              </div>
+              <div class="vs-help" id="vsProbeResult">아직 돌려보지 않았습니다</div>
+
+              <h3>블라인드 판 — 실제 게임에서 비교</h3>
+              <div class="vs-help">
+                반응 검사는 "상황에 맞게 고르는가"까지만 알려줍니다. <b>그게 실제로 오래 살게 해주는지</b>는
+                따로 봐야 합니다. 블라인드 판에서는 몰리가 <b>화면을 보지 않고</b> 돌아다닙니다
+                (한 방향을 잠깐 유지했다가 무작위로 바꿈). 피격은 똑같이 세고, 학습은 하지 않습니다.
+                <br />화면을 본 판과 생존 시간이 비슷하게 나오면 — 지금은 보는 게 도움이 안 되고 있다는 뜻입니다.
+                <b>판마다 번갈아</b>가 가장 공정합니다 (같은 시간대·같은 실력으로 비교되니까).
+              </div>
+              <div class="controls">
+                <label>블라인드
+                  <select id="vsBlindMode">
+                    <option value="off">끄기 (항상 화면을 봄)</option>
+                    <option value="alternate">판마다 번갈아</option>
+                    <option value="always">항상 블라인드</option>
+                  </select>
+                </label>
+              </div>
+              <div class="vs-help" id="vsBlindStats">아직 기록이 없습니다</div>
+            </div>
+
+            <!-- ── 레벨업 읽은 것 ────────────────────────── -->
+            <div class="vs-sec" data-sec="read">
+              <h3>레벨업에서 읽은 것</h3>
+              <div class="vs-help">
+                레벨업 화면에서 <b>무슨 글자를 읽었고 그중 무엇을 골랐는지</b> 그대로 남깁니다.
+                같은 화면을 두 번 읽어 서로 다르면 지어낸 것으로 보고 아무것도 누르지 않습니다 —
+                그때는 두 판독이 같이 표시됩니다.
+              </div>
+              <div class="controls">
+                <label class="filebtn">사진으로 시험
+                  <input type="file" id="vsTestImg" accept="image/*" hidden /></label>
+                <button id="vsTestPaste">붙여넣기(Ctrl+V)로 시험</button>
+                <b id="vsTestState" class="tune">-</b>
+              </div>
+              <div class="vs-help">
+                레벨업 화면을 <b>캡처해서 넣으면</b> 게임을 돌리지 않고도 무엇을 읽는지 바로 봅니다.
+              </div>
+              <div class="vs-help vs-scroll" id="vsReadLog">아직 레벨업 화면을 읽은 적이 없습니다</div>
+            </div>
+
+            <!-- ── 이번 판 목표 ──────────────────────────── -->
+            <div class="vs-sec" data-sec="goal">
+              <h3>이번 판에 해야 할 목표</h3>
+              <div class="vs-help">
+                멈춘 화면(시작메뉴 · 결과)에서 무엇을 목표로 움직일지 한국어로 적어두세요.
+                비워두면 "그냥 시작해서 오래 버티기"로 봅니다.
+                <br /><b>판이 끝나면 결과를 정리해 알려주고, 목표는 잊습니다.</b>
+                계속 같은 목표로 돌리려면 아래를 체크하세요.
+                <br />레벨업 화면에서는 이 문장을 <b>지시가 아니라 배경</b>으로만 씁니다 —
+                카드를 고르는 자리에서 재시작을 떠올리면 곤란하니까요.
+              </div>
+              <textarea id="vsGoal" rows="2" class="vs-goal"
+                placeholder="예: 게임 시작해서 아무 캐릭터나 고르고, 죽으면 바로 다시 시작해"></textarea>
+              <div class="controls">
+                <label class="checkbox"><input type="checkbox" id="vsGoalRepeat" /> 목적 계속 반복</label>
+                <b id="vsGoalState" class="tune">-</b>
+              </div>
+              <div class="vs-help" id="vsRunResult">아직 끝난 판이 없습니다</div>
+            </div>
+
+            <!-- ── 화면 설정 ─────────────────────────────── -->
+            <div class="vs-sec" data-sec="screen">
+              <h3>영역 지정 (드래그)</h3>
+              <div class="vs-help">
+                <b>경험치 바를 꼭 지정해주세요.</b> 이게 없으면 몰리에게는
+                "무언가를 얻었다"는 신호가 아예 없습니다. 젬 항목은 젬이 어느 쪽에 있는지를
+                나타낼 뿐이라, 먹었는지는 알려주지 않습니다.
+                화면 맨 위에 가로로 긴 바가 보통 경험치입니다. 드래그해서 감싸주세요.
+              </div>
+              <div class="controls">
+                <button data-mark="game">게임 영역 지정</button>
+                <button data-mark="hp">체력바 지정</button>
+                <button data-mark="xp">경험치 바 지정</button>
+                <button data-mark="cards">레벨업 카드 영역 (보통 불필요)</button>
+              </div>
+
+              <h3>화면 가르치기</h3>
+              <div class="vs-help">
+                각 화면이 떠 있을 때 해당 버튼을 눌러주세요. 그 화면의 축소 이미지를 기억해뒀다가 비교합니다.
+              </div>
+              <div class="controls" id="vsTeachBtns"></div>
+              <div class="vs-help">
+                어떤 화면인지 애매하면 직접 물어볼 수 있습니다. 아래 버튼을 누르면
+                <b>지금 보이는 화면을 그대로 잘라 LLM에게 "이게 무슨 화면이냐"고 묻습니다.</b>
+              </div>
+              <div class="controls">
+                <button id="vsAskScreen">지금 화면이 뭔지 물어보기</button>
+                <button id="vsAskRemember" disabled>이 답으로 기억시키기</button>
+              </div>
+              <div class="vs-help" id="vsAskResult">아직 물어본 적이 없습니다</div>
+
+              <h3>몰리에게 알려주기</h3>
+              <div class="vs-help">
+                몰리가 못 맞히거나 엉뚱하게 답하면 <b>직접 알려주면 됩니다.</b>
+                지금 보이는 화면이 무엇인지 말로 적어주세요.
+                <b>그 화면 사진에 메모가 붙습니다.</b> 다음에 같은 화면이 뜨면 그때만 이 메모를 참고합니다.
+                <br /><b>아는 종류에 없으면 새 종류를 만듭니다.</b> "이건 캐릭터 고르는 화면이야" 라고 하면
+                <code>캐릭터 선택</code> 이라는 화면 종류가 생깁니다.
+              </div>
+              <textarea id="vsTellText" rows="2" class="vs-goal"
+                placeholder="예: 이건 보물상자 연 화면이야. 아무 키나 누르면 넘어가"></textarea>
+              <div class="controls">
+                <button id="vsTellBtn">이렇게 알려주기</button>
+              </div>
+              <div class="vs-help" id="vsHints">아직 알려준 것이 없습니다</div>
+
+              <div class="vs-help">
+                멈춘 화면에서 무엇을 누를지는 <b>전부 LLM이 정합니다.</b> LLM이 꺼져 있거나
+                판단에 실패하면 <b>아무것도 누르지 않고 기다립니다</b> — 잘못 누르는 것보다 낫습니다.
+                마우스는 쓰지 않고, ESC는 어떤 경우에도 나가지 않습니다.
+              </div>
+              <div class="controls">
+                <button id="vsForget">지정한 것 전부 지우기</button>
+                <button id="vsClearRuns">판 기록 지우기</button>
+              </div>
+              <div class="vs-help" id="vsMarks"></div>
+            </div>
+
+            <!-- ── LLM ───────────────────────────────────── -->
+            <div class="vs-sec" data-sec="llm">
+              <h3>멈춘 화면 판단</h3>
+              <div class="vs-help">
+                레벨업 · 시작메뉴 · 결과 화면은 게임이 멈춰 있어서 몇 초 걸려도 됩니다.
+                그래서 여기만 LLM이 맡습니다. <b>움직임은 계속 초파리 뇌가 합니다.</b>
+                카드 화면을 읽어야 하니 <b>이미지를 볼 수 있는 모델</b>이 필요합니다.
+              </div>
+              <div class="controls">
+                <label class="checkbox"><input type="checkbox" id="vsLlmOn" /> 멈춘 화면을 LLM에게</label>
+                <label>모델 <select id="vsModel"><option value="">브릿지 연결 후 선택</option></select></label>
+                <button id="vsLoadModels">모델 목록</button>
+              </div>
+              <div class="controls">
+                <label>카드 개수 <input type="number" id="vsCards" min="2" max="5" value="4" style="width:60px" /></label>
+                <b id="vsLlmState" class="tune">-</b>
+              </div>
+              <div class="controls">
+                <label class="checkbox"><input type="checkbox" id="vsIdOn" /> 화면 종류도 LLM이 판별 (자동 학습)</label>
+                <b id="vsIdState" class="tune">-</b>
+              </div>
+              <div class="vs-help">
+                위를 켜면 가르쳐준 화면이 없어도 <b>게임이 멈춘 순간</b>을 잡아 LLM에게 한 번 묻고,
+                답이 오면 그 화면을 기억해서 <b>다음부터는 묻지 않고 즉시 알아봅니다.</b>
+              </div>
+            </div>
+
+            <!-- ── 기록 · 통계 ───────────────────────────── -->
+            <div class="vs-sec" data-sec="stats">
+              <h3>판 기록과 통계</h3>
+              <div class="vs-help" id="vsRuns">기록 없음</div>
+              <div class="vs-help" id="vsReward">-</div>
+              <div class="vs-help" id="vsMenuStats">아직 멈춘 화면에서 키를 누른 기록이 없습니다</div>
+            </div>
+
+            <!-- ── 민감도 ────────────────────────────────── -->
+            <div class="vs-sec" data-sec="tune">
+              <h3>인식 민감도와 성향</h3>
+              <div class="vs-help">
+                <b>적 판별 방식</b> — 몬스터는 스스로 움직이고 보석은 바닥에 붙어 있습니다.
+                다만 카메라가 캐릭터를 따라다녀서 화면 전체가 같이 밀리므로, 먼저 <b>화면 전체의 이동량을
+                재서 빼고</b> 그래도 움직이는 것만 몬스터로 봅니다. 메뉴처럼 아무것도 안 움직이는 화면에서는
+                적이 0이 됩니다. 무엇으로 판단했는지는 <b>몰리 시야</b> 아래에 나옵니다.
+              </div>
+              <div class="controls">
+                <label>적 판별
+                  <select id="vsEnemyMode">
+                    <option value="motion">움직임 (스스로 움직이는 것)</option>
+                    <option value="both">색 + 움직임 (어둡고 움직이는 것)</option>
+                    <option value="color">색 (예전 방식: 배경보다 어두운 것)</option>
+                  </select>
+                </label>
+                <label>움직임 민감도 <input type="range" id="vsMoveThr" min="6" max="60" value="22" /></label>
+                <b id="vsMoveThrVal" class="tune">22</b>
+              </div>
+              <div class="controls">
+                <label>적 임계값 <input type="range" id="vsEnemyThr" min="5" max="90" value="30" /></label>
+                <b id="vsEnemyThrVal" class="tune">30</b>
+                <label>젬 임계값 <input type="range" id="vsGemThr" min="5" max="90" value="25" /></label>
+                <b id="vsGemThrVal" class="tune">25</b>
+              </div>
+              <div class="controls">
+                <label>회피 성향 <input type="range" id="vsAvoid" min="10" max="150" value="60" /></label>
+                <label>젬 욕심 <input type="range" id="vsGreed" min="0" max="100" value="35" /></label>
+              </div>
+              <div class="controls">
+                <label>학습에 맡기는 비중 <input type="range" id="vsAlpha" min="0" max="100" value="0" /></label>
+                <b id="vsAlphaVal" class="tune">0%</b>
+              </div>
+              <div class="vs-help">
+                0%면 전부 규칙 기반으로 움직입니다. 규칙 기반이 바닥을 깔아주는 동안 몰리는 계속 배우고 있고,
+                쓸 만해 보이면 이 값을 조금씩 올려 판단을 넘기면 됩니다. 한 번에 올리면 규칙 기반이
+                한 번도 안 가본 상황에서 무너집니다.
+              </div>
+              <div class="vs-help" id="vsFeat">-</div>
+            </div>
+
+            <!-- ── 실행 방법 ─────────────────────────────── -->
+            <div class="vs-sec" data-sec="help">
+              <h3>실행 순서</h3>
+              <div class="vs-help">
+                <code>.\start.ps1</code> → 이 페이지를 <code>localhost:8743</code> 으로 열기 →
+                화면 공유 → 조작 시작 → <b>게임 창 클릭</b>.
+                <br />브릿지는 기본이 안전모드(로그만)이고, <code>-Live</code> 를 붙여야 실제로 키를 누릅니다.
+                <br />뱀서를 <b>창모드</b>로 띄우고, 화면 공유에서 그 창을 고르세요.
+                <br />위 화면에서 빨간 점 = 적으로 인식, 파란 점 = 젬으로 인식, 노란 선 = 지금 가려는 방향.
+                <br /><b>브라우저 창을 가리지 마세요</b> — 가려지면 브라우저가 타이머를 늦춰 봇이 사실상 멈춥니다.
+              </div>
+            </div>
+          </section>
+          </div>
+        </main>
+      </section>
+    </div>
+
+    <aside class="molli-column">
+      <div class="molli-bar"><span>몰리</span></div>
+      <canvas id="molliCanvas" width="120" height="140"></canvas>
+      <p class="molli-caption" id="molliCaption">땅굴 파는 중</p>
+    </aside>
+  </div>
 
   <footer>
-    데이터: <code>data/drosophila_neurons</code> (NeuroMorpho.org) — 이 폴더의 실제 후각엽/버섯체 뉴런 형태 데이터가 이 에이전트 구조 설계의 근거입니다.
-    폰트: Neo둥근모 (SIL OFL 1.1)
+    데이터: <code>data/drosophila_neurons</code> (NeuroMorpho.org) · 폰트: Neo둥근모 (SIL OFL 1.1)
   </footer>
 
+  <script src="chart.js"></script>
+  <script src="log.js"></script>
   <script src="env.js"></script>
   <script src="agent.js"></script>
   <script src="main.js"></script>
   <script src="minesweeper.js"></script>
   <script src="minesweeper-ui.js"></script>
+  <script src="vampire.js"></script>
   <script src="tabs.js"></script>
+  <script src="molli.js"></script>
 </body>
 </html>

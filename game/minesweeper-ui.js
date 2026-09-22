@@ -5,16 +5,17 @@
   const CELL = 48;
   const env = new MinesweeperEnv(9, 10);
   const brain = new FlyBrain({
-    nInputs: 75, // 5x5 창 x 칸당 3개 특징
-    nKC: 300,
-    sparsity: 0.08,
+    nInputs: MinesweeperEnv.PN_DIM,
+    nKC: 500,
+    sparsity: 0.06,
     nActions: 1,
     lr: 0.15,
     gamma: 0,
   });
 
-  let epsilon = 0.2;
-  const EPS_MIN = 0.02;
+  // 지뢰찾기는 무작위 탐험 한 번이 그대로 죽음이라 탐험률을 낮게 잡는다
+  let epsilon = 0.08;
+  const EPS_MIN = 0.01;
   const EPS_DECAY = 0.999;
 
   let running = false;
@@ -43,7 +44,13 @@
     btnNew: document.getElementById("msBtnNew"),
     speed: document.getElementById("msSpeed"),
     showSafety: document.getElementById("msShowSafety"),
+    logOn: document.getElementById("msLogOn"),
+    readout: document.getElementById("mineChartReadout"),
   };
+
+  const logger = createLogger("mineLog");
+  let hoverIndex = null;
+  let moveNo = 0;
 
   const NUM_COLORS = [
     null,
@@ -149,8 +156,9 @@
   function computeSafety() {
     safety = new Map();
     if (!env.minesPlaced || env.dead || env.won) return;
-    for (const [r, c] of env.candidates()) {
-      const activeKC = brain.encode(env.observe(r, c));
+    const cm = env.certainMineMap();
+    for (const [r, c] of env.frontierCandidates()) {
+      const activeKC = brain.encode(env.observe(r, c, cm));
       safety.set(`${r},${c}`, brain.qValues(activeKC)[0]);
     }
   }
@@ -158,8 +166,19 @@
   function endGame() {
     games++;
     if (env.won) wins++;
+    if (el.logOn.checked) {
+      logger.push(
+        `<span class="tag">G${games}</span> ${moveNo}수 만에 ` +
+          (env.won
+            ? `<span class="good">클리어</span>`
+            : `<span class="bad">종료</span>`) +
+          ` · 개방률 ${(env.progress() * 100).toFixed(0)}%`,
+        env.won ? "win" : null
+      );
+    }
     history.push({ won: env.won, progress: env.progress() });
     epsilon = Math.max(EPS_MIN, epsilon * EPS_DECAY);
+    moveNo = 0;
     env.reset();
     safety = new Map();
     drawChart();
@@ -182,7 +201,8 @@
       return;
     }
 
-    const cands = env.candidates();
+    let cands = env.frontierCandidates();
+    if (!cands.length) cands = env.candidates();
     if (!cands.length) {
       endGame();
       draw();
@@ -190,12 +210,13 @@
       return;
     }
 
+    const cm = env.certainMineMap();
     let best = null;
     let bestQ = -Infinity;
     safety = new Map();
     const encoded = new Map();
     for (const [r, c] of cands) {
-      const activeKC = brain.encode(env.observe(r, c));
+      const activeKC = brain.encode(env.observe(r, c, cm));
       const q = brain.qValues(activeKC)[0];
       encoded.set(`${r},${c}`, activeKC);
       safety.set(`${r},${c}`, q);
@@ -205,17 +226,41 @@
       }
     }
 
-    const pick = Math.random() < epsilon ? cands[Math.floor(Math.random() * cands.length)] : best;
+    const explored = Math.random() < epsilon;
+    const pick = explored ? cands[Math.floor(Math.random() * cands.length)] : best;
     const [pr, pc] = pick;
     const activeKC = encoded.get(`${pr},${pc}`);
+    const ev = env.evidence(pr, pc, cm);
+    const pickQ = safety.get(`${pr},${pc}`);
+    const rank = [...safety.values()].filter((v) => v > pickQ).length + 1;
 
-    const { hitMine } = env.reveal(pr, pc);
+    const { hitMine, opened } = env.reveal(pr, pc);
     const reward = hitMine ? -1 : 1;
     // 즉시 확정되는 결과라 부트스트랩 없이(done=true) 도파민 신호를 그대로 반영
     lastDopamine = brain.learn(activeKC, 0, reward, null, true);
+    moveNo++;
+    logMove(pr, pc, pickQ, rank, cands.length, ev, explored, hitMine, opened);
 
     draw();
     updateStats();
+  }
+
+  function logMove(r, c, q, rank, total, ev, explored, hitMine, opened) {
+    if (!el.logOn.checked) return;
+    const why = explored
+      ? `<span class="dim">무작위 탐험 ε${epsilon.toFixed(2)}</span>`
+      : `안전도 ${fmtNum(q)} <span class="dim">(후보 ${total}개 중 ${rank}위)</span>`;
+    const clue = ev.hasClue
+      ? `인접단서 최소 지뢰비율 ${ev.minR.toFixed(2)}${ev.certain ? ' <span class="bad">확정지뢰</span>' : ""}`
+      : `<span class="dim">인접 단서 없음</span>`;
+    const outcome = hitMine
+      ? `<span class="bad">지뢰</span>`
+      : `<span class="good">안전 ${opened}칸</span>`;
+    logger.push(
+      `<span class="tag">G${games + 1}·M${moveNo}</span> ` +
+        `<span class="pick">(${r},${c})</span> · ${why} · ${clue} · ${outcome} · DA ${fmtNum(lastDopamine)}`,
+      hitMine ? "hit" : null
+    );
   }
 
   function updateStats() {
@@ -232,37 +277,39 @@
     }
   }
 
-  function drawChart() {
-    chartCtx.clearRect(0, 0, chart.width, chart.height);
-    const BUCKET = 20;
-    if (history.length < BUCKET) return;
+  const BUCKET = 20;
+
+  function chartBuckets() {
     const buckets = [];
     for (let i = 0; i + BUCKET <= history.length; i += BUCKET) {
       const slice = history.slice(i, i + BUCKET);
       buckets.push({
-        win: slice.filter((h) => h.won).length / BUCKET,
-        prog: slice.reduce((a, h) => a + h.progress, 0) / BUCKET,
+        win: (slice.filter((h) => h.won).length / BUCKET) * 100,
+        prog: (slice.reduce((a, h) => a + h.progress, 0) / BUCKET) * 100,
+        endGame: i + BUCKET,
       });
     }
-    const recent = buckets.slice(-60);
-    if (recent.length < 2) return;
-    const w = chart.width;
-    const h = chart.height;
+    return buckets.slice(-60);
+  }
 
-    const line = (key, color) => {
-      chartCtx.strokeStyle = color;
-      chartCtx.lineWidth = 2;
-      chartCtx.beginPath();
-      recent.forEach((b, i) => {
-        const x = (i / (recent.length - 1)) * w;
-        const y = h - b[key] * (h - 10) - 5;
-        if (i === 0) chartCtx.moveTo(x, y);
-        else chartCtx.lineTo(x, y);
-      });
-      chartCtx.stroke();
-    };
-    line("prog", "#ffb040"); // 평균 개방률
-    line("win", "#4fd8e0"); // 승률
+  function drawChart() {
+    ChartUtil.fit(chart, 220);
+    chartCtx.clearRect(0, 0, chart.width, chart.height);
+    const buckets = chartBuckets();
+    if (buckets.length < 2) return;
+    ChartUtil.draw(chart, {
+      xStart: buckets[0].endGame,
+      xStep: BUCKET,
+      hoverIndex,
+      yMin: 0,
+      yMax: 100,
+      format: (v) => `${v.toFixed(0)}`,
+      markMax: false,
+      series: [
+        { values: buckets.map((b) => b.win), color: "#4fd8e0", width: 2 },
+        { values: buckets.map((b) => b.prog), color: "#ffb040", width: 2 },
+      ],
+    });
   }
 
   function speedToInterval(v) {
@@ -308,6 +355,33 @@
     if (el.showSafety.checked && safety.size === 0) computeSafety();
     draw();
   });
+
+  el.logOn.addEventListener("change", () => logger.setEnabled(el.logOn.checked));
+
+  const READOUT_HINT = "그래프에 마우스를 올리면 해당 구간 값이 표시됩니다";
+
+  chart.addEventListener("mousemove", (e) => {
+    const buckets = chartBuckets();
+    if (buckets.length < 2) return;
+    const i = ChartUtil.indexFromEvent(chart, e, buckets.length);
+    hoverIndex = i;
+    if (i === null) {
+      el.readout.textContent = READOUT_HINT;
+    } else {
+      const b = buckets[i];
+      el.readout.textContent =
+        `${b.endGame - BUCKET + 1}~${b.endGame}판 · 승률 ${b.win.toFixed(0)}% · 평균 개방률 ${b.prog.toFixed(0)}%`;
+    }
+    drawChart();
+  });
+
+  chart.addEventListener("mouseleave", () => {
+    hoverIndex = null;
+    el.readout.textContent = READOUT_HINT;
+    drawChart();
+  });
+
+  window.addEventListener("resize", drawChart);
 
   canvas.addEventListener("click", (e) => {
     if (running) return;
