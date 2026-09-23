@@ -116,22 +116,88 @@ class MinesweeperEnv {
     return this.revealedCount / this.safeCellTotal();
   }
 
-  // 후보 칸 주변 5x5를 에이전트 입력(PN)으로 변환: 칸마다 [열림여부, 숫자/8, 판밖여부]
-  observe(r, c) {
-    const obs = [];
-    for (let dr = -2; dr <= 2; dr++) {
-      for (let dc = -2; dc <= 2; dc++) {
-        const nr = r + dr;
-        const nc = c + dc;
-        if (!this.inBounds(nr, nc)) {
-          obs.push(0, 0, 1);
-        } else if (this.revealed[nr][nc]) {
-          obs.push(1, this.count[nr][nc] / 8, 0);
-        } else {
-          obs.push(0, 0, 0);
+  // 열린 칸에 인접한 미개봉 칸. 정보가 없는 칸을 후보에서 빼면 학습이 훨씬 잘 붙는다.
+  frontierCandidates() {
+    const out = [];
+    for (let r = 0; r < this.size; r++) {
+      for (let c = 0; c < this.size; c++) {
+        if (this.revealed[r][c] || this.flagged[r][c]) continue;
+        if (this.neighbors(r, c).some(([nr, nc]) => this.revealed[nr][nc])) out.push([r, c]);
+      }
+    }
+    return out;
+  }
+
+  // 숫자와 미개봉 칸 수가 같으면 그 칸들은 전부 지뢰로 확정된다 (1단계 제약 전파)
+  certainMineMap() {
+    const cm = Array.from({ length: this.size }, () => new Array(this.size).fill(false));
+    for (let r = 0; r < this.size; r++) {
+      for (let c = 0; c < this.size; c++) {
+        if (!this.revealed[r][c] || this.count[r][c] === 0) continue;
+        const un = this.neighbors(r, c).filter(([nr, nc]) => !this.revealed[nr][nc]);
+        if (un.length === this.count[r][c]) {
+          for (const [nr, nc] of un) cm[nr][nc] = true;
         }
       }
     }
-    return obs;
+    return cm;
+  }
+
+  static bin(value, bins, lo, hi) {
+    const out = new Array(bins).fill(0);
+    const t = Math.max(lo, Math.min(hi, value));
+    let idx = Math.floor(((t - lo) / (hi - lo)) * bins);
+    if (idx >= bins) idx = bins - 1;
+    out[idx] = 1;
+    return out;
+  }
+
+  // 후각엽(AL) 전처리에 해당하는 단계.
+  // 실제 초파리도 수용체 신호를 날것 그대로 버섯체에 보내지 않고 정규화/이득조절을 거쳐 보낸다.
+  // 여기서도 원시 창 패턴 대신 "이 칸이 지뢰일 국소 증거"를 정규화한 PN 채널로 만들어 보낸다.
+  // 무엇이 안전한지에 대한 판단 자체는 학습하지 않은 상태에서 도파민 보상으로 배운다.
+  // 한 칸이 지뢰일 국소 증거. 로그에도 그대로 쓰여서 판단 근거를 사람이 읽을 수 있다.
+  evidence(r, c, cm = this.certainMineMap()) {
+    const known = (list) => list.filter(([x, y]) => cm[x][y] || this.flagged[x][y]).length;
+
+    const revNb = this.neighbors(r, c).filter(([a, b]) => this.revealed[a][b] && this.count[a][b] > 0);
+    const ratios = [];
+    for (const [a, b] of revNb) {
+      const un = this.neighbors(a, b).filter(([x, y]) => !this.revealed[x][y]);
+      const k = known(un);
+      const rem = un.length - k;
+      const need = this.count[a][b] - k;
+      ratios.push(rem <= 0 ? 0 : Math.max(0, Math.min(1, need / rem)));
+    }
+
+    const unrevealedTotal = this.size * this.size - this.revealedCount;
+    return {
+      minR: ratios.length ? Math.min(...ratios) : 1,
+      maxR: ratios.length ? Math.max(...ratios) : 1,
+      meanR: ratios.length ? ratios.reduce((a, b) => a + b, 0) / ratios.length : 1,
+      revCount: revNb.length,
+      myUnrevealed: this.neighbors(r, c).filter(([a, b]) => !this.revealed[a][b]).length,
+      density: unrevealedTotal > 0 ? this.mineCount / unrevealedTotal : 0,
+      certain: !!cm[r][c],
+      hasClue: ratios.length > 0,
+    };
+  }
+
+  observe(r, c, cm = this.certainMineMap()) {
+    const e = this.evidence(r, c, cm);
+    const B = MinesweeperEnv.bin;
+    return [
+      ...B(e.minR, 8, 0, 1),
+      ...B(e.maxR, 8, 0, 1),
+      ...B(e.meanR, 8, 0, 1),
+      ...B(e.revCount, 9, 0, 8),
+      ...B(e.myUnrevealed, 9, 0, 8),
+      ...B(e.density, 6, 0, 0.6),
+      e.certain ? 1 : 0,
+      e.hasClue ? 1 : 0,
+      e.minR === 0 ? 1 : 0,
+    ];
   }
 }
+
+MinesweeperEnv.PN_DIM = 51;

@@ -1,0 +1,3218 @@
+// 뱀서 탭: 화면 공유로 게임을 보고, 몰리 뇌로 이동 방향을 정해서, 로컬 브릿지로 키를 보낸다.
+// 브라우저는 다른 프로그램을 조작할 수 없기 때문에 실제 입력만 bot/bridge.py가 맡는다.
+//
+// 마우스는 쓰지 않는다. 모니터가 여러 대면 게임 창이 어느 모니터에 있는지 알 수 없어서
+// 클릭이 주 모니터로 튀어버린다. 키보드는 활성화된 창으로 그냥 들어가므로 그 문제가 없다.
+(function () {
+  const DIRS = [
+    { name: "위", keys: ["w"], dx: 0, dy: -1 },
+    { name: "오른위", keys: ["w", "d"], dx: 1, dy: -1 },
+    { name: "오른", keys: ["d"], dx: 1, dy: 0 },
+    { name: "오른아래", keys: ["s", "d"], dx: 1, dy: 1 },
+    { name: "아래", keys: ["s"], dx: 0, dy: 1 },
+    { name: "왼아래", keys: ["s", "a"], dx: -1, dy: 1 },
+    { name: "왼", keys: ["a"], dx: -1, dy: 0 },
+    { name: "왼위", keys: ["w", "a"], dx: -1, dy: -1 },
+  ];
+  DIRS.forEach((d) => {
+    const len = Math.hypot(d.dx, d.dy);
+    d.ux = d.dx / len;
+    d.uy = d.dy / len;
+  });
+
+  const AW = 480; // 분석 해상도 (전체 화면을 받으므로 조금 키웠다)
+  const AH = 270;
+
+  // 캐릭터 주변을 격자 지도로 본다.
+  // 이전에는 8방향 밀도 32개로 뭉뚱그렸는데, 그러면 "적이 많은 쪽"과 "적 사이에 틈이 있는 쪽"이
+  // 똑같아 보인다. 뱀서에서 죽는 이유는 거의 포위인데 그 틈을 못 보면 빠져나갈 수가 없다.
+  const GRID_N = 24;
+  const CELLS = GRID_N * GRID_N;
+
+  // 격자 칸마다 어느 방향/얼마나 먼지는 화면 비율이 같으면 매 프레임 같으므로 미리 계산해둔다.
+  //
+  // 예전에는 화면 높이를 지름으로 하는 원 안만 봤다. 16:9 에서는 넓이의 44% 뿐이고
+  // 좌우 20% 씩은 아예 안 봤다. 뱀서는 몬스터가 화면 밖에서 걸어 들어오므로 좌우 끝이
+  // 몬스터가 처음 보이는 자리인데, 거기를 못 봐서 가까이 와서야 반응했다.
+  //
+  // 지금은 격자가 화면 사각형 전체를 덮는다. 다만 거리는 실제 픽셀 거리로 잰다 —
+  // 칸 좌표로 재면 가로가 더 길어서 옆의 적이 실제보다 가깝게 계산된다.
+  // 거리 단위는 예전과 같은 "화면 높이의 절반" 이라 좌우 끝은 약 1.8 이 된다.
+  const cellDir = new Int8Array(CELLS).fill(-1);
+  const cellDist = new Float32Array(CELLS);
+  let geomAspect = 0;
+  const CHAR_R = 0.12; // 캐릭터 반경 (화면 높이 절반 단위)
+
+  function buildCellGeometry(aspect) {
+    geomAspect = aspect;
+    cellDir.fill(-1);
+    for (let gy = 0; gy < GRID_N; gy++) {
+      for (let gx = 0; gx < GRID_N; gx++) {
+        const i = gy * GRID_N + gx;
+        // 칸 가운데의 실제 위치 (화면 높이의 절반 단위)
+        const nx = (((gx + 0.5) / GRID_N) * 2 - 1) * aspect;
+        const ny = ((gy + 0.5) / GRID_N) * 2 - 1;
+        const dist = Math.hypot(nx, ny);
+        cellDist[i] = dist;
+        // 캐릭터 자신은 제외한다. 예전 기준(0.06)은 격자 칸 가운데보다 작아서 실제로는
+        // 한 칸도 빠지지 않았다. 움직임으로 적을 가르면 캐릭터의 걷는 모션이 "움직이는 것"
+        // 으로 잡혀 자기 자신을 적으로 보게 되므로, 캐릭터 크기만큼(화면 높이의 약 6%) 뺀다.
+        if (dist < CHAR_R) continue;
+        const ang = Math.atan2(ny, nx);
+        let di = Math.round((ang + Math.PI / 2) / (Math.PI / 4)) % 8;
+        if (di < 0) di += 8;
+        cellDir[i] = di;
+      }
+    }
+  }
+  buildCellGeometry(AW / AH);
+
+  const STATES = {
+    play: "플레이 중",
+    levelup: "레벨업 선택",
+    menu: "시작/메뉴",
+    dead: "사망/결과",
+    chest: "보상 상자",
+    revive: "부활",
+  };
+  // 기본으로 아는 화면들. 여기에 사용자가 만든 종류가 더해진다 —
+  // 게임마다 화면은 다르고, 뱀서만 해도 이 여섯 개로는 모자란다.
+  // "이건 캐릭터 고르는 화면이야" 라고 하면 그 자리에서 새 종류가 생긴다.
+  const BUILTIN_STATES = Object.keys(STATES);
+  // 실제로 채우는 건 아래 load() 가 만들어진 다음이다 (여기서 부르면 TDZ 로 터진다)
+  let customStates = {}; // key -> 한국어 이름
+
+  // 플레이가 아닌 화면에서는 몰리가 움직이지 않고 무엇을 누를지 정한다.
+  const pausedStates = () => Object.keys(STATES).filter((k) => k !== "play");
+
+  // 새 종류의 키는 프롬프트에도 들어가므로 영문 소문자로만 받는다.
+  function addState(key, label) {
+    const k = String(key || "").trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
+    const ko = String(label || "").trim().slice(0, 12);
+    if (!k || !ko || k.length > 24 || STATES[k]) return null;
+    STATES[k] = ko;
+    customStates[k] = ko;
+    save("customStates", customStates);
+    renderTeachButtons();
+    return k;
+  }
+  const STORE = "molli.vs2";
+
+  const video = document.createElement("video");
+  video.muted = true;
+  video.playsInline = true;
+  // 화면에서 완전히 떼어놓으면 브라우저가 프레임을 디코딩하지 않는 경우가 있다
+  video.style.cssText = "position:fixed;width:2px;height:2px;opacity:0.01;pointer-events:none;left:0;bottom:0;";
+  document.body.appendChild(video);
+
+  const work = document.createElement("canvas");
+  work.width = AW;
+  work.height = AH;
+  const wctx = work.getContext("2d", { willReadFrequently: true });
+
+  const view = document.getElementById("vsView");
+  const vctx = view.getContext("2d");
+
+  const el = {};
+  [
+    "vsShare", "vsDemo", "vsRun", "vsStop", "vsBridge", "vsLive", "vsDebug", "vsLogOn",
+    "vsEnemyThr", "vsEnemyThrVal", "vsGemThr", "vsGemThrVal", "vsStatus", "vsState",
+    "vsFeat", "vsDir", "vsEnemies", "vsGems", "vsFps", "vsHp", "vsXp", "vsWindow", "vsWindowNow", "vsWindowState", "vsMarks",
+    "vsAvoid", "vsGreed", "vsAlpha", "vsAlphaVal", "vsRuns", "vsRunNow", "vsReward", "vsMenuStats", "vsModel", "vsLlmOn", "vsLlmState", "vsCards",
+    "vsIdOn", "vsIdState", "vsGoal", "vsAskScreen", "vsAskRemember", "vsAskResult",
+    "vsTellText", "vsTellBtn", "vsHints",
+    "vsGoalRepeat", "vsGoalState", "vsRunResult", "vsTeachBtns", "vsReadLog",
+    "vsTestImg", "vsTestPaste", "vsTestState",
+    "vsBlindMode", "vsBlindStats", "vsProbeBtn", "vsProbeResult",
+    "vsSight", "vsSightTable", "vsSightWhy", "vsEnemyMode", "vsMoveThr", "vsMoveThrVal", "vsDemoPause",
+  ].forEach((id) => (el[id] = document.getElementById(id)));
+
+  const logger = createLogger("vsLog", { max: 60 });
+
+  // 몰리는 세 탭이 같이 쓰는 요소가 하나뿐이라 복사할 수 없다.
+  // 뱀서 탭에서는 왼쪽 위로 옮기고, 나가면 원래 오른쪽 칼럼 자리로 돌려놓는다.
+  // 캔버스는 id 로 참조되므로 DOM 을 옮겨도 그리던 내용은 그대로 남는다.
+  function placeMolli() {
+    const molli = document.querySelector(".molli-column");
+    const slot = document.getElementById("vsMolliSlot");
+    const layout = document.querySelector(".layout");
+    if (!molli || !slot || !layout) return;
+    const onVamp = document.getElementById("panel-vamp")?.classList.contains("is-active");
+    const want = onVamp ? slot : layout;
+    if (molli.parentElement !== want) want.appendChild(molli);
+  }
+  // 탭 전환 리스너가 is-active 를 바꾸기 전에 불리면 옛 상태를 본다. 한 틱 미룬다.
+  document.querySelectorAll(".tab").forEach((t) =>
+    t.addEventListener("click", () => setTimeout(placeMolli, 0))
+  );
+  placeMolli();
+
+  // 왼쪽 메뉴: 고른 것만 보여준다
+  document.querySelectorAll(".vs-menu-btn").forEach((b) =>
+    b.addEventListener("click", () => {
+      document.querySelectorAll(".vs-menu-btn").forEach((x) => x.classList.toggle("is-active", x === b));
+      document.querySelectorAll(".vs-sec").forEach((sec) =>
+        sec.classList.toggle("is-active", sec.dataset.sec === b.dataset.sec)
+      );
+    })
+  );
+
+  // 로그 줄마다 "몇 번째 판의 몇 분 몇 초"를 앞에 붙인다.
+  // 나중에 되짚을 때 어느 판의 일인지 알 수 없으면 기록이 반쪽짜리다.
+  const rawPush = logger.push.bind(logger);
+  logger.push = (html, kind) => rawPush(runStamp() + html, kind);
+
+  function runNo() {
+    return history.length + (run.active ? 1 : 0);
+  }
+
+  function runStamp() {
+    if (run.active) {
+      const sec = Math.max(0, (performance.now() - run.startedAt) / 1000);
+      const mm = Math.floor(sec / 60);
+      const ss = Math.floor(sec % 60).toString().padStart(2, "0");
+      return `<span class="dim">[${runNo()}판 ${mm}:${ss}]</span> `;
+    }
+    // 판과 판 사이. 방금 끝난 판이 몇 번째였는지를 보여주는 편이 되짚기 쉽다.
+    if (history.length) return `<span class="dim">[${history.length}판 뒤]</span> `;
+    return '<span class="dim">[시작 전]</span> ';
+  }
+
+  // ---- 저장되는 설정 ----
+  const load = (k, d) => {
+    try {
+      return JSON.parse(localStorage.getItem(STORE + "." + k)) ?? d;
+    } catch (e) {
+      return d;
+    }
+  };
+  const save = (k, v) => localStorage.setItem(STORE + "." + k, JSON.stringify(v));
+
+  let gameRect = load("game", null); // {x,y,w,h} 0~1 정규화
+  let hpRect = load("hp", null);
+  let xpRect = load("xp", null);
+  let hpColor = load("hpColor", null);
+  let cardRect = load("cards", null); // 레벨업 카드가 뜨는 영역
+  // 상태 -> [{ t: 썸네일, note: 그 화면에 대한 사용자 메모 }]
+  // 예전에는 썸네일 배열만 저장했다. 그때 저장해둔 것도 그대로 읽히게 한 번 변환한다.
+  // 사용자가 만든 화면 종류를 기본 목록에 합친다
+  customStates = load("customStates", {});
+  Object.assign(STATES, customStates);
+
+  let taught = load("taught", {});
+  for (const [name, samples] of Object.entries(taught)) {
+    taught[name] = (samples || []).map((s) => (Array.isArray(s) ? { t: s, note: "" } : s));
+  }
+
+  // ---- 상태 특징: 썸네일 ----
+  // 숫자 몇 개(밝기·움직임)로는 레벨업 화면과 사망 화면을 못 가른다.
+  // 화면을 아주 작게 줄인 썸네일을 통째로 비교하면 확실히 구분된다.
+  const TW = 16;
+  const TH = 10;
+  let prevThumb = null;
+  let motionEma = 0;
+
+  // ---- 움직임으로 적 가르기 ----
+  // 게임 영역을 MW x MH 흑백으로 줄여 들고 있다가, 다음 프레임과 비교한다.
+  const MW = 160, MH = 90;
+  const SHIFT_R = 6;        // 한 프레임에 카메라가 움직일 수 있는 최대 칸 수
+  const ALIGN_BAD = 26;     // 가장 잘 겹쳐도 이만큼 다르면 장면이 바뀐 것 — 이 프레임은 색으로 판단
+  let prevGray = null;
+  let lastShift = { dx: 0, dy: 0, err: 0, ok: false };
+  let lastResid = null;
+  let lastFreshAt = 0;
+  const STILL_MS = 300; // 이보다 오래 같은 장이면 정말 멈춘 화면으로 본다
+  const ZERO_RESID = new Float32Array(MW * MH); // "아무것도 안 움직인다"
+
+  // 두 장이 사실상 같은가 (영상이 아직 다음 장을 안 준 경우)
+  function sameFrame(a, b) {
+    let e = 0, n = 0;
+    for (let i = 0; i < a.length; i += 7) { e += Math.abs(a[i] - b[i]); n++; }
+    return e / n < 0.4;
+  }
+
+  function grayFrame(px, gx, gy, gw, gh) {
+    const out = new Float32Array(MW * MH);
+    for (let y = 0; y < MH; y++) {
+      const sy = Math.min(AH - 1, (gy + ((y + 0.5) / MH) * gh) | 0);
+      for (let x = 0; x < MW; x++) {
+        const sx = Math.min(AW - 1, (gx + ((x + 0.5) / MW) * gw) | 0);
+        const i = (sy * AW + sx) * 4;
+        out[y * MW + x] = (px[i] + px[i + 1] + px[i + 2]) / 3;
+      }
+    }
+    return out;
+  }
+
+  // 이전 프레임을 (dx,dy) 만큼 옮겼을 때 지금 프레임과 가장 잘 겹치는 값을 찾는다.
+  // 가장자리는 HUD(경험치 바, 타이머)라서 카메라와 같이 움직이지 않는다 — 안쪽만 본다.
+  function estimateShift(cur, prev) {
+    const m = SHIFT_R + 10;
+    let best = { dx: 0, dy: 0, err: Infinity };
+    for (let dy = -SHIFT_R; dy <= SHIFT_R; dy++) {
+      for (let dx = -SHIFT_R; dx <= SHIFT_R; dx++) {
+        let e = 0, n = 0;
+        for (let y = m; y < MH - m; y += 2) {
+          const py = y - dy;
+          for (let x = m; x < MW - m; x += 2) {
+            e += Math.abs(cur[y * MW + x] - prev[py * MW + (x - dx)]);
+            n++;
+          }
+        }
+        e /= n;
+        if (e < best.err) best = { dx, dy, err: e };
+      }
+    }
+    best.ok = best.err < ALIGN_BAD;
+    return best;
+  }
+
+  // 카메라 이동을 빼고도 남는 차이. 여기서 큰 곳이 스스로 움직이는 것이다.
+  function residualMap(cur, prev, sh) {
+    const r = new Float32Array(MW * MH);
+    for (let y = 0; y < MH; y++) {
+      const py = y - sh.dy;
+      if (py < 0 || py >= MH) continue;
+      for (let x = 0; x < MW; x++) {
+        const px = x - sh.dx;
+        if (px < 0 || px >= MW) continue;
+        r[y * MW + x] = Math.abs(cur[y * MW + x] - prev[py * MW + px]);
+      }
+    }
+    return r;
+  }
+
+  // ---- 게임이 멈췄나 ----
+  // 레벨업 창·메뉴는 가운데에 뜨고 그 뒤 전장은 멈춘다. 가운데를 빼고 바깥 전장만 보면
+  // 창의 반짝임에 속지 않는다. 카메라도 안 움직여야 멈춘 것이다.
+  const STILL_RATIO = 0.003; // 바깥쪽에서 스스로 움직이는 점이 이 비율 미만이면 멈춘 것
+  const CENTER_SKIP = 0.8;   // 가운데 이만큼(화면 높이 절반 단위)은 창이 뜨는 자리라 뺀다
+  let stillSince = 0;
+  let hintedIdOff = false;
+
+  function outerMotion(resid, moveThr, aspect) {
+    let m = 0, n = 0;
+    for (let y = Math.ceil(MH * 0.1); y < MH; y += 2) { // 맨 위 HUD 는 뺀다
+      const ny = (y - MH / 2) / (MH / 2);
+      for (let x = 0; x < MW; x += 2) {
+        const nx = ((x - MW / 2) / (MW / 2)) * aspect;
+        if (Math.hypot(nx, ny) < CENTER_SKIP) continue;
+        n++;
+        if (resid[y * MW + x] > moveThr) m++;
+      }
+    }
+    return n ? m / n : 0;
+  }
+
+  // 적·젬 격자를 시간축으로 누르기. 나타날 때는 빠르게, 사라질 때는 천천히 —
+  // 한 프레임 번쩍이는 이펙트는 못 올라오고, 진짜 적은 잠깐 가려져도 남는다.
+  const GRID_RISE = 0.5;
+  const GRID_FALL = 0.15;
+  const enemySmooth = new Float32Array(CELLS);
+  const gemSmooth = new Float32Array(CELLS);
+  let jitterEma = 0;
+
+  function thumbnail(px, rect) {
+    const t = new Float32Array(TW * TH);
+    const rx = rect ? rect.x * AW : 0;
+    const ry = rect ? rect.y * AH : 0;
+    const rw = rect ? rect.w * AW : AW;
+    const rh = rect ? rect.h * AH : AH;
+    for (let y = 0; y < TH; y++) {
+      for (let x = 0; x < TW; x++) {
+        const sx = Math.floor(rx + (x / TW) * rw);
+        const sy = Math.floor(ry + (y / TH) * rh);
+        const i = (Math.min(AH - 1, sy) * AW + Math.min(AW - 1, sx)) * 4;
+        t[y * TW + x] = (px[i] + px[i + 1] + px[i + 2]) / 3 / 255;
+      }
+    }
+    return t;
+  }
+
+  // ---- 피격: 캐릭터가 빨개지는 순간 ----
+  // 체력바는 캐릭터를 따라다녀서 위치가 계속 바뀌고, 지정해두지 않으면 아예 못 읽는다.
+  // 하지만 캐릭터는 항상 화면 정중앙에 있고, 맞으면 스프라이트가 빨갛게 번쩍인다.
+  // 그 번쩍임은 체력바 없이도 잡힌다.
+  const HURT_BOX = 6; // 중앙에서 ±6픽셀 (분석 캔버스 480x270 기준, 캐릭터 크기쯤)
+  const HURT_JUMP = 0.1; // 평소보다 이만큼 붉어지면 맞은 것으로 본다
+  let redBase = null;
+
+  function centerRedness(px) {
+    const cx = ((gameRect ? gameRect.x + gameRect.w / 2 : 0.5) * AW) | 0;
+    const cy = ((gameRect ? gameRect.y + gameRect.h / 2 : 0.5) * AH) | 0;
+    let sum = 0, n = 0;
+    for (let y = cy - HURT_BOX; y <= cy + HURT_BOX; y++) {
+      if (y < 0 || y >= AH) continue;
+      for (let x = cx - HURT_BOX; x <= cx + HURT_BOX; x++) {
+        if (x < 0 || x >= AW) continue;
+        const i = (y * AW + x) * 4;
+        // 빨강이 나머지 두 색보다 얼마나 앞서는가. 밝기가 변해도 잘 흔들리지 않는다.
+        sum += (px[i] - (px[i + 1] + px[i + 2]) / 2) / 255;
+        n++;
+      }
+    }
+    return n ? sum / n : 0;
+  }
+
+  function thumbDist(a, b) {
+    let s = 0;
+    for (let i = 0; i < a.length; i++) s += Math.abs(a[i] - b[i]);
+    return s / a.length;
+  }
+
+  const MATCH_THRESHOLD = 0.075;
+
+  // frozen: 게임이 멈췄나 (바깥 전장 기준). 모르는 화면일 때 play/menu 를 가르는 데 쓴다.
+  function classify(thumb, frozen) {
+    let best = null;
+    let bestSample = null;
+    let bestD = Infinity;
+    for (const [name, samples] of Object.entries(taught)) {
+      for (const s of samples) {
+        const d = thumbDist(thumb, Float32Array.from(s.t));
+        if (d < bestD) {
+          bestD = d;
+          best = name;
+          bestSample = s;
+        }
+      }
+    }
+    // 어떤 샘플에 맞았는지도 같이 돌려준다. 그 샘플에 붙은 메모만 쓰기 위해서다.
+    if (best && bestD < MATCH_THRESHOLD) {
+      return { state: best, dist: bestD, guessed: false, sample: bestSample, nearest: best };
+    }
+    // 가르쳐준 화면이 아니면: 전장이 멈췄으면 멈춘 화면(메뉴·레벨업 등), 아니면 플레이 중
+    return { state: frozen ? "menu" : "play", dist: bestD, guessed: true, sample: null, nearest: best };
+  }
+
+  function teach(name, thumb, note) {
+    const t = thumb || lastThumb;
+    if (!t) {
+      // 예전에는 여기서 조용히 끝나서, 버튼을 눌러도 아무 일도 없는 것처럼 보였다.
+      logger.push(
+        '<span class="bad">기억할 화면이 없습니다</span> ' +
+          '<span class="dim">— 화면 공유(또는 테스트 영상)를 먼저 켜야 지금 화면을 붙잡을 수 있습니다.</span>'
+      );
+      return;
+    }
+    taught[name] = taught[name] || [];
+    taught[name].push({ t: Array.from(t), note: String(note || "").trim().slice(0, 120) });
+    if (taught[name].length > 4) taught[name].shift();
+    save("taught", taught);
+    renderMarks();
+    logger.push(
+      `<span class="good">"${STATES[name]}" 화면을 기억했습니다 (${taught[name].length}개)</span>` +
+        (note ? ` <span class="dim">— ${note}</span>` : "")
+    );
+  }
+
+  // ---- 브릿지 ----
+  let ws = null;
+
+  function connectBridge() {
+    return new Promise((resolve) => {
+      try {
+        ws = new WebSocket(`ws://${location.hostname}:8744`);
+      } catch (e) {
+        el.vsBridge.textContent = "연결 실패";
+        return resolve(false);
+      }
+      ws.onopen = () => {
+        el.vsBridge.textContent = "연결됨";
+        // 브릿지는 재시작하면 대상 창을 잊는다. 연결될 때마다 다시 알려준다.
+        applyWindow();
+        resolve(true);
+      };
+      ws.onmessage = (ev) => {
+        try {
+          const m = JSON.parse(ev.data);
+          if (m.id && pending.has(m.id)) {
+            pending.get(m.id)(m);
+            pending.delete(m.id);
+            return;
+          }
+          if (m.live !== undefined) el.vsLive.textContent = m.live ? "실제 입력" : "안전모드";
+        } catch (e) {}
+      };
+      ws.onclose = () => {
+        el.vsBridge.textContent = "끊김";
+        el.vsLive.textContent = "-";
+        ws = null;
+      };
+      ws.onerror = () => {
+        el.vsBridge.textContent = "연결 실패 (브릿지 확인)";
+        resolve(false);
+      };
+      setTimeout(() => resolve(false), 2500);
+    });
+  }
+
+  const wsSend = (o) => ws && ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify(o));
+  const sendKeys = (keys) => wsSend({ type: "move", keys });
+  const sendTap = (key) => wsSend({ type: "tap", key });
+  const sendStop = () => wsSend({ type: "stop" });
+
+  // 브릿지를 거쳐 Ollama에 물어본다. 브라우저에서 직접 부르면 CORS 설정을 따로 해야 해서,
+  // 어차피 로컬에서 도는 브릿지가 대신 부르게 했다.
+  const pending = new Map();
+  let reqId = 0;
+
+  function askBridge(payload, timeoutMs) {
+    return new Promise((resolve) => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return resolve({ error: "브릿지 미연결" });
+      const id = `r${++reqId}`;
+      pending.set(id, resolve);
+      wsSend({ ...payload, id });
+      setTimeout(() => {
+        if (pending.has(id)) {
+          pending.delete(id);
+          resolve({ error: "응답 시간 초과" });
+        }
+      }, timeoutMs);
+    });
+  }
+
+  // ---- 사진 한 장으로 레벨업 읽기를 시험한다 ----
+  // 게임을 돌리면서 고치려면 한 번 확인하는 데 한 판이 걸린다. 스크린샷을 바로 넣어
+  // 무엇을 읽는지 보면, 이름을 잘못 읽는지 아예 못 읽는지가 즉시 드러난다.
+  async function runImageTest(blobOrFile) {
+    if (!el.vsModel.value) {
+      el.vsTestState.textContent = "모델을 먼저 고르세요";
+      return;
+    }
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      if (!(await connectBridge())) {
+        el.vsTestState.textContent = "브릿지에 연결하지 못했습니다";
+        return;
+      }
+    }
+    el.vsTestState.textContent = "읽는 중...";
+
+    // 게임에서 보내는 것과 같은 조건으로 맞춘다 (같은 최대 크기, 같은 품질)
+    const bitmap = await createImageBitmap(blobOrFile);
+    const scale = Math.min(1, LEVELUP_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(bitmap.width * scale));
+    c.height = Math.max(1, Math.round(bitmap.height * scale));
+    c.getContext("2d").drawImage(bitmap, 0, 0, c.width, c.height);
+    const testImage = {
+      b64: c.toDataURL("image/jpeg", 0.9).split(",")[1],
+      w: c.width,
+      h: c.height,
+    };
+
+    const nCards = Math.max(2, Math.min(5, Number(el.vsCards.value)));
+    const before = readLog.length;
+    const choice = await llmPickCard(nCards, testImage);
+
+    // llmPickCard 가 기록을 남기므로, 그걸 사진 시험이라고 표시만 해준다
+    if (readLog.length > before) {
+      readLog[readLog.length - 1].test = true;
+      save("readLog", readLog);
+      renderReadLog();
+    }
+    el.vsTestState.textContent = choice
+      ? `${choice.item} (${(choice.took || 0).toFixed(1)}초)`
+      : "읽지 못했습니다 — 아래 기록을 보세요";
+  }
+
+  el.vsTestImg.addEventListener("change", () => {
+    const f = el.vsTestImg.files?.[0];
+    if (f) runImageTest(f);
+    el.vsTestImg.value = ""; // 같은 파일을 다시 골라도 동작하게
+  });
+
+  el.vsTestPaste.addEventListener("click", () => {
+    el.vsTestState.textContent = "이 창에서 Ctrl+V 를 눌러주세요";
+  });
+
+  window.addEventListener("paste", (e) => {
+    // 뱀서 탭이 보일 때만 받는다
+    if (!document.getElementById("panel-vamp")?.classList.contains("is-active")) return;
+    const item = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith("image/"));
+    if (!item) return;
+    e.preventDefault();
+    runImageTest(item.getAsFile());
+  });
+
+  // ---- 키를 보낼 창 ----
+  // 활성 창을 안 보면 알트탭했을 때 다른 프로그램에 대고 WASD를 친다.
+  // 제목 일부만 맞으면 되고, 아니면 브릿지가 잡고 있던 키까지 놓는다.
+  async function applyWindow() {
+    const want = (el.vsWindow.value || "").trim();
+    save("window", want);
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      el.vsWindowState.textContent = "브릿지에 연결되면 적용됩니다";
+      return;
+    }
+    const res = await askBridge({ type: "set_window", window: want }, 5000);
+    if (res.error) {
+      el.vsWindowState.textContent = `설정 실패: ${res.error}`;
+      return;
+    }
+    showWindowState(res.window, res.foreground);
+  }
+
+  function showWindowState(want, fg) {
+    if (!want) {
+      el.vsWindowState.innerHTML =
+        '<span class="bad">대상 창이 지정되지 않았습니다</span> ' +
+        `<span class="dim">— 지금 활성 창(${fg || "?"})이 무엇이든 키가 들어갑니다</span>`;
+      return;
+    }
+    const ok = fg && fg.toLowerCase().includes(want.toLowerCase());
+    el.vsWindowState.innerHTML =
+      `대상 창 <b>${want}</b> · 지금 활성 창 <b>${fg || "?"}</b> → ` +
+      (ok
+        ? '<span class="good">키가 나갑니다</span>'
+        : '<span class="dim">지금은 막혀 있습니다 (게임 창을 클릭하면 나갑니다)</span>');
+  }
+
+  el.vsWindow.addEventListener("change", applyWindow);
+
+  el.vsWindowNow.addEventListener("click", async () => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      if (!(await connectBridge())) {
+        el.vsWindowState.textContent = "브릿지에 연결하지 못했습니다";
+        return;
+      }
+    }
+    // 이 페이지를 클릭한 순간 활성 창은 브라우저다. 게임 창을 먼저 눌러두게 안내한다.
+    const res = await askBridge({ type: "win_info" }, 5000);
+    if (res.error) {
+      el.vsWindowState.textContent = `조회 실패: ${res.error}`;
+      return;
+    }
+    el.vsWindow.value = res.foreground || "";
+    await applyWindow();
+    logger.push(
+      `<span class="tag">대상 창</span> <span class="pick">${res.foreground || "(없음)"}</span> ` +
+        '<span class="dim">— 이 창이 앞에 있을 때만 키가 나갑니다</span>'
+    );
+  });
+
+  // ---- 화면 공유 ----
+  let stream = null;
+  let demoOn = false;
+
+  async function share() {
+    demoOn = false;
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: false });
+      video.srcObject = stream;
+      await video.play();
+      stream.getVideoTracks()[0].addEventListener("ended", () => {
+        stop();
+        stream = null;
+        setStatus("화면 공유가 끊겼습니다", "bad");
+      });
+      setStatus("화면 공유 중 — 게임 영역을 지정하세요", "ok");
+      el.vsRun.disabled = false;
+      startLoop();
+      return true;
+    } catch (e) {
+      setStatus("화면 공유 취소됨", "bad");
+      return false;
+    }
+  }
+
+  function startDemoFeed() {
+    const c = document.createElement("canvas");
+    c.width = 640;
+    c.height = 360;
+    const g = c.getContext("2d");
+
+    // 월드 좌표. 카메라(=캐릭터)가 천천히 방향을 바꿔가며 걸어다닌다.
+    const cam = { x: 0, y: 0, vx: 40, vy: 0, turnAt: 0 };
+    const gems = Array.from({ length: 40 }, () => ({
+      x: (Math.random() - 0.5) * 1400, y: (Math.random() - 0.5) * 900,
+    }));
+    const mobs = Array.from({ length: 16 }, () => ({
+      x: (Math.random() - 0.5) * 900, y: (Math.random() - 0.5) * 600,
+      sp: 25 + Math.random() * 30,
+    }));
+    // 바닥 무늬: 월드에 고정된 얼룩들
+    const spots = Array.from({ length: 260 }, () => ({
+      x: Math.random() * 1600, y: Math.random() * 1000,
+      r: 3 + Math.random() * 9, c: 60 + Math.random() * 50,
+    }));
+
+    let prev = performance.now();
+    const timer = setInterval(() => {
+      if (!demoOn) return clearInterval(timer);
+      const now = performance.now();
+      const dt = Math.min(0.05, (now - prev) / 1000);
+      prev = now;
+
+      if (now > cam.turnAt) {
+        const a = Math.random() * Math.PI * 2;
+        const sp = demoPaused ? 0 : 35 + Math.random() * 40;
+        cam.vx = Math.cos(a) * sp;
+        cam.vy = Math.sin(a) * sp;
+        cam.turnAt = now + 1200 + Math.random() * 1500;
+      }
+      if (demoPaused) { cam.vx = 0; cam.vy = 0; }
+      cam.x += cam.vx * dt;
+      cam.y += cam.vy * dt;
+
+      const ox = c.width / 2 - cam.x, oy = c.height / 2 - cam.y;
+
+      g.fillStyle = "#5d6e4a";
+      g.fillRect(0, 0, c.width, c.height);
+      // 바닥 무늬 (1600x1000 으로 반복)
+      for (const s of spots) {
+        const sx = ((((s.x + ox) % 1600) + 1600) % 1600) - 480;
+        const sy = ((((s.y + oy) % 1000) + 1000) % 1000) - 320;
+        g.fillStyle = `rgb(${s.c},${s.c + 22},${s.c - 10})`;
+        g.fillRect(sx, sy, s.r, s.r);
+      }
+      // 보석: 바닥에 붙어 있다 (카메라와 함께 밀릴 뿐 스스로는 안 움직인다)
+      g.fillStyle = "#2f7dff";
+      for (const gm of gems) {
+        g.beginPath();
+        g.arc(gm.x + ox, gm.y + oy, 5, 0, Math.PI * 2);
+        g.fill();
+      }
+      // 몬스터: 캐릭터 쪽으로 걸어온다
+      g.fillStyle = "#1a1a20";
+      for (const m of mobs) {
+        if (!demoPaused) {
+          const dx = cam.x - m.x, dy = cam.y - m.y, d = Math.hypot(dx, dy) || 1;
+          m.x += (dx / d) * m.sp * dt;
+          m.y += (dy / d) * m.sp * dt;
+          if (d < 20) { m.x = cam.x + (Math.random() - 0.5) * 900; m.y = cam.y + (Math.random() - 0.5) * 600; }
+        }
+        g.beginPath();
+        g.arc(m.x + ox, m.y + oy, 10, 0, Math.PI * 2);
+        g.fill();
+      }
+      // 멈췄을 때는 레벨업 화면처럼: 전장은 그대로 멈추고 가운데에 창이 뜨며 반짝인다.
+      // 반짝임은 매 프레임 바뀌므로, 화면 전체 변화로 판단하면 '움직인다' 로 속는다.
+      if (demoPaused) {
+        g.fillStyle = "rgba(10,10,20,0.55)";
+        g.fillRect(0, 0, c.width, c.height);
+        const pw = 240, ph = 200, px0 = c.width / 2 - pw / 2, py0 = c.height / 2 - ph / 2;
+        g.fillStyle = "#26243a";
+        g.fillRect(px0, py0, pw, ph);
+        g.fillStyle = "#ffd75a";
+        g.font = "bold 18px sans-serif";
+        g.fillText("LEVEL UP!", px0 + 70, py0 + 26);
+        for (let k = 0; k < 4; k++) {
+          g.fillStyle = k === 0 ? "#4a4870" : "#34324c";
+          g.fillRect(px0 + 16, py0 + 40 + k * 38, pw - 32, 30);
+        }
+        for (let k = 0; k < 40; k++) {  // 반짝이 (매 프레임 다른 자리)
+          g.fillStyle = `rgba(255,230,160,${0.4 + Math.random() * 0.6})`;
+          g.fillRect(px0 + Math.random() * pw, py0 + Math.random() * ph, 3, 3);
+        }
+      }
+      // 캐릭터와 체력바, 위쪽 HUD (카메라와 같이 안 움직인다)
+      g.fillStyle = "#e8d8a0";
+      g.fillRect(c.width / 2 - 8, c.height / 2 - 8, 16, 16);
+      g.fillStyle = "#d33";
+      g.fillRect(c.width / 2 - 20, c.height / 2 + 14, 40 * demoHp, 5);
+      g.fillStyle = "#101014";
+      g.fillRect(0, 0, c.width, 12);
+      g.fillStyle = "#4aa8ff";
+      g.fillRect(2, 3, (c.width - 4) * ((now / 9000) % 1), 6);
+    }, 40);
+    return c.captureStream(30);
+  }
+  // 멈추면 메뉴 화면처럼 아무것도 안 움직인다 — 이때 적이 0으로 잡혀야 한다
+  let demoPaused = false;
+  let demoHp = 1;
+
+  async function useDemo() {
+    demoOn = true;
+    stream = startDemoFeed();
+    video.srcObject = stream;
+    await video.play();
+    setStatus("테스트 영상 — 게임 없이 배선만 확인합니다", "ok");
+    el.vsRun.disabled = false;
+    startLoop();
+  }
+
+  // ---- 분석 ----
+  // 입력은 방향별 (압박, 탈출여지, 젬) 24개. 규칙 기반이 쓰는 것과 같은 재료다.
+  // 나중에 A단계로 가면 이 자리에 격자 지도를 통째로 넣고 KC를 2,000개로 늘리면 된다.
+  const brain = new FlyBrain({
+    nInputs: 24,
+    nKC: 400, sparsity: 0.08, nActions: DIRS.length, lr: 0.12, gamma: 0.85,
+  });
+
+  function analyze() {
+    wctx.drawImage(video, 0, 0, AW, AH);
+    const img = wctx.getImageData(0, 0, AW, AH);
+    const px = img.data;
+
+    // 게임 영역 (지정 안 했으면 화면 전체)
+    const gx = (gameRect ? gameRect.x : 0) * AW;
+    const gy = (gameRect ? gameRect.y : 0) * AH;
+    const gw = (gameRect ? gameRect.w : 1) * AW;
+    const gh = (gameRect ? gameRect.h : 1) * AH;
+
+    let sum = 0, cnt = 0;
+    for (let y = gy; y < gy + gh; y += 7) {
+      for (let x = gx; x < gx + gw; x += 7) {
+        const i = ((y | 0) * AW + (x | 0)) * 4;
+        sum += (px[i] + px[i + 1] + px[i + 2]) / 3;
+        cnt++;
+      }
+    }
+    const bg = sum / Math.max(1, cnt);
+
+    const enemyThr = Number(el.vsEnemyThr.value);
+    const gemSat = Number(el.vsGemThr.value);
+
+    // 카메라 이동을 재고, 그걸 빼고도 움직이는 곳을 구한다
+    const nowMs = performance.now();
+    const curGray = grayFrame(px, gx, gy, gw, gh);
+    let resid = null;
+    if (!prevGray) {
+      prevGray = curGray;
+      lastFreshAt = nowMs;
+    } else if (sameFrame(curGray, prevGray)) {
+      // 같은 장이 또 왔다. 잠깐이면 영상이 늦은 것 — 직전 결과를 그대로 쓰고
+      // 비교 기준도 바꾸지 않는다. 오래가면 정말 멈춘 화면 — 아무것도 안 움직인다.
+      resid = nowMs - lastFreshAt < STILL_MS ? lastResid : ZERO_RESID;
+    } else {
+      lastFreshAt = nowMs;
+      lastShift = estimateShift(curGray, prevGray);
+      resid = lastShift.ok ? residualMap(curGray, prevGray, lastShift) : null;
+      lastResid = resid;
+      prevGray = curGray;
+    }
+    const moveThr = Number(el.vsMoveThr.value);
+    const enemyMode = el.vsEnemyMode.value;
+    let movingCount = 0;
+    // 뱀서는 카메라가 캐릭터를 따라다녀서 캐릭터는 늘 게임 영역 중앙에 있다
+    const cx = gx + gw / 2;
+    const cy = gy + gh / 2;
+    const halfW = gw / 2, halfH = gh / 2;
+    // 게임 영역의 비율이 바뀌면(영역을 새로 지정하면) 격자 기하를 다시 만든다
+    const aspect = gw / gh;
+    if (Math.abs(aspect - geomAspect) > 0.01) buildCellGeometry(aspect);
+
+    const enemyGrid = new Float32Array(CELLS);
+    const gemGrid = new Float32Array(CELLS);
+    let enemyCount = 0, gemCount = 0;
+    const dots = [];
+
+    for (let y = gy; y < gy + gh; y += 2) {
+      for (let x = gx; x < gx + gw; x += 2) {
+        const xi = x | 0, yi = y | 0;
+        const i = (yi * AW + xi) * 4;
+        const r = px[i], g = px[i + 1], b = px[i + 2];
+        const lum = (r + g + b) / 3;
+        // 화면 사각형 전체를 -1 ~ 1 로 (가로는 화면 폭, 세로는 화면 높이 기준)
+        const ddx = (xi - cx) / halfW;
+        const ddy = (yi - cy) / halfH;
+
+        const isGem = b - (r + g) / 2 > gemSat && b > 90;
+        const colorEnemy = bg - lum > enemyThr;
+        // 카메라 이동을 빼고도 달라진 곳 = 스스로 움직이는 것
+        let moving = false;
+        if (resid) {
+          const mx = Math.min(MW - 1, (((xi - gx) / gw) * MW) | 0);
+          const my = Math.min(MH - 1, (((yi - gy) / gh) * MH) | 0);
+          moving = resid[my * MW + mx] > moveThr;
+          if (moving) movingCount++;
+        }
+        // 첫 프레임이거나 장면이 바뀌어 카메라 이동을 못 잰 프레임은 색으로 판단한다
+        const isEnemy =
+          !isGem &&
+          (enemyMode === "color" || !resid
+            ? colorEnemy
+            : enemyMode === "motion"
+            ? moving
+            : colorEnemy && moving);
+        if (!isGem && !isEnemy) continue;
+
+        const gxi = Math.min(GRID_N - 1, Math.max(0, ((ddx + 1) / 2 * GRID_N) | 0));
+        const gyi = Math.min(GRID_N - 1, Math.max(0, ((ddy + 1) / 2 * GRID_N) | 0));
+        const ci = gyi * GRID_N + gxi;
+        if (cellDir[ci] < 0) continue; // 캐릭터 자신이 있는 가운데 칸
+        if (isGem) { gemGrid[ci] += 1; gemCount++; }
+        else { enemyGrid[ci] += 1; enemyCount++; }
+        if (dots.length < 1500) dots.push(xi, yi, isGem ? 1 : 0);
+      }
+    }
+
+    // 칸 하나가 꽉 찬 정도를 0~1로. 칸은 이제 가로로 조금 긴 직사각형이고,
+    // 2픽셀 간격으로 훑으므로 칸 하나에 (폭/칸수/2) x (높이/칸수/2) 개의 표본이 들어간다.
+    const cellFull = Math.max(1, (gw / GRID_N / 2) * (gh / GRID_N / 2));
+    for (let i = 0; i < CELLS; i++) {
+      enemyGrid[i] = Math.min(1, enemyGrid[i] / cellFull);
+      gemGrid[i] = Math.min(1, gemGrid[i] / cellFull);
+    }
+
+    // 폭발·데미지 숫자 같은 이펙트는 한두 프레임만 번쩍인다. 그대로 두면 그게 적이 된다.
+    // 시간축으로 눌러서, 계속 있는 것만 남기고 잠깐 튀는 것은 죽인다.
+    // 올라갈 때보다 내려갈 때를 느리게 해서 진짜 적이 한 프레임 사라져도 유지되게 한다.
+    let jitter = 0;
+    for (let i = 0; i < CELLS; i++) {
+      const prevE = enemySmooth[i];
+      jitter += Math.abs(enemyGrid[i] - prevE);
+      enemySmooth[i] = enemyGrid[i] > prevE
+        ? prevE + (enemyGrid[i] - prevE) * GRID_RISE
+        : prevE + (enemyGrid[i] - prevE) * GRID_FALL;
+      gemSmooth[i] = gemGrid[i] > gemSmooth[i]
+        ? gemSmooth[i] + (gemGrid[i] - gemSmooth[i]) * GRID_RISE
+        : gemSmooth[i] + (gemGrid[i] - gemSmooth[i]) * GRID_FALL;
+      enemyGrid[i] = enemySmooth[i];
+      gemGrid[i] = gemSmooth[i];
+    }
+    // 프레임마다 격자가 얼마나 흔들리는지. 이 값이 크면 이펙트를 적으로 세고 있다는 뜻이다.
+    jitterEma = jitterEma * 0.9 + (jitter / CELLS) * 0.1;
+
+    const field = fieldFeatures(enemyGrid, gemGrid);
+
+    const thumb = thumbnail(px, gameRect);
+    let motion = 0;
+    if (prevThumb) {
+      for (let i = 0; i < thumb.length; i++) motion += Math.abs(thumb[i] - prevThumb[i]);
+      motion = (motion / thumb.length) * 100;
+    }
+    prevThumb = thumb;
+    motionEma = motionEma * 0.6 + motion * 0.4;
+
+    // 캐릭터가 평소보다 붉어졌는지. 번쩍이는 동안에는 기준을 갱신하지 않는다 —
+    // 그러면 기준이 같이 끌려 올라가서 피격이 묻혀버린다.
+    const red = centerRedness(px);
+    let hurt = false;
+    if (redBase === null) {
+      redBase = red;
+    } else {
+      hurt = red > redBase + HURT_JUMP;
+      if (!hurt) redBase = redBase * 0.98 + red * 0.02;
+    }
+
+    return {
+      field, enemyGrid, gemGrid, enemyCount, gemCount, dots, thumb,
+      motion: motionEma, hp: readHp(px), xp: readXp(px), red, redBase, hurt, jitter: jitterEma,
+      shift: lastShift, usedMotion: !!resid && enemyMode !== "color", movingCount,
+      outerMove: resid ? outerMotion(resid, moveThr, gw / gh) : null,
+    };
+  }
+
+  // 격자 지도를 방향별 숫자 3개로 요약한다.
+  //  threat       : 그쪽에 깔린 적의 압박 (가까울수록 크게)
+  //  escape       : 그쪽으로 얼마나 달아날 수 있는지 = 가장 가까운 적까지의 거리
+  //  gem          : 그쪽 젬의 매력
+  // 포위돼서 죽는 게임이라 "적이 적은 쪽"보다 "빠져나갈 여지가 있는 쪽"이 중요하다.
+  // 이 세 숫자는 규칙 기반 판단과 나중의 학습 양쪽이 같이 쓴다.
+  function fieldFeatures(enemyGrid, gemGrid) {
+    const threat = new Float32Array(8);
+    const escape = new Float32Array(8).fill(1);
+    const gem = new Float32Array(8);
+
+    for (let i = 0; i < CELLS; i++) {
+      const d = cellDir[i];
+      if (d < 0) continue;
+      const dist = cellDist[i];
+      const e = enemyGrid[i];
+      if (e > 0.05) {
+        threat[d] += e / (dist + 0.15);
+        if (dist < escape[d]) escape[d] = dist;
+      }
+      if (gemGrid[i] > 0.05) gem[d] += gemGrid[i] / (dist + 0.3);
+    }
+
+    let maxT = 1e-6, maxG = 1e-6;
+    for (let d = 0; d < 8; d++) {
+      if (threat[d] > maxT) maxT = threat[d];
+      if (gem[d] > maxG) maxG = gem[d];
+    }
+    for (let d = 0; d < 8; d++) {
+      threat[d] /= maxT;
+      gem[d] /= maxG;
+    }
+    return { threat, escape, gem };
+  }
+
+  // 체력바: 지정할 때 왼쪽 끝 색을 기억해두고, 그 색과 비슷한 칸이 몇 %인지를 센다.
+  // 게임마다 색이 달라도 동작하고, 바가 줄면 비율이 떨어진다.
+  // 경험치 바는 색으로 읽지 않는다. 레벨업하면 번쩍여서 기준색과 안 맞게 되고,
+  // 그 순간 0%로 읽혀 보상에 그대로 들어간다.
+  //
+  // 대신 채워진 경계가 어디인지를 찾는다. 기준은 매 프레임 바의 양쪽 끝에서 뽑는다 —
+  // 왼쪽 끝은 차 있는 쪽, 오른쪽 끝은 비어 있는 쪽. 번쩍이면 기준과 본체가 같이
+  // 변하므로 영향을 받지 않는다.
+  function readXp(px) {
+    return barEdge(px, xpRect);
+  }
+
+  // 프롬프트 예시를 그대로 베껴 온 답을 걸러낸다. 못 읽었으면 못 읽었다고 나와야지,
+  // 그럴듯한 이름이 들어오면 그게 진짜인 줄 알고 눌러버린다.
+  // 두 판독이 얼마나 닮았는지 (0~1). 편집 거리를 길이로 나눈 값이다.
+  //   시금치 / 시급치  -> 0.67  (한 글자 흔들린 것뿐, 제대로 읽었다고 본다)
+  //   마나의 노래 / 슈퍼 소울 -> 0.2 미만 (지어낸 것)
+  function similar(a, b) {
+    a = String(a || ""); b = String(b || "");
+    if (!a || !b) return 0;
+    if (a === b) return 1;
+    const m = a.length, n = b.length;
+    let prev = Array.from({ length: n + 1 }, (_, j) => j);
+    for (let i = 1; i <= m; i++) {
+      const cur = [i];
+      for (let j = 1; j <= n; j++) {
+        cur[j] = Math.min(
+          prev[j] + 1,
+          cur[j - 1] + 1,
+          prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+        );
+      }
+      prev = cur;
+    }
+    return 1 - prev[n] / Math.max(m, n);
+  }
+  const SIMILAR_ENOUGH = 0.5;
+
+  function isPlaceholder(text) {
+    const t = String(text || "").trim();
+    return /^<.*>$/.test(t) || /name on card|its description|button label|label of|highlighted/i.test(t);
+  }
+
+  const dist3 = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]);
+
+  function barEdge(px, rect) {
+    if (!rect) return null;
+    const x0 = (rect.x * AW) | 0, y0 = (rect.y * AH) | 0;
+    const w = (rect.w * AW) | 0, h = Math.max(1, (rect.h * AH) | 0);
+    if (w < 8) return null;
+
+    // 열마다 대표 색 (세로로 평균)
+    const cols = [];
+    for (let x = 0; x < w; x++) {
+      let r = 0, g = 0, b = 0;
+      for (let y = 0; y < h; y++) {
+        const i = ((y0 + y) * AW + (x0 + x)) * 4;
+        r += px[i]; g += px[i + 1]; b += px[i + 2];
+      }
+      cols.push([r / h, g / h, b / h]);
+    }
+
+    // 양 끝에서 기준을 뽑는다. 끝의 테두리를 피하려고 조금 안쪽을 본다.
+    const k = Math.max(1, (w * 0.08) | 0);
+    const mid = (arr) => {
+      const c = [0, 0, 0];
+      for (const p of arr) { c[0] += p[0]; c[1] += p[1]; c[2] += p[2]; }
+      return c.map((v) => v / arr.length);
+    };
+    const L = mid(cols.slice(1, 1 + k));
+    const R = mid(cols.slice(w - 1 - k, w - 1));
+
+    // 두 톤으로 갈리지 않으면 꽉 찼거나 비어 있는 것이다.
+    if (dist3(L, R) < 45) {
+      // 채워진 바는 보통 더 밝고 색이 선명하다. 빈 트랙은 어두운 회색이다.
+      const all = mid(cols);
+      const lum = (all[0] + all[1] + all[2]) / 3;
+      const sat = Math.max(...all) - Math.min(...all);
+      return sat > 35 || lum > 110 ? 1 : 0;
+    }
+
+    // 왼쪽부터 훑다가 "비어 있는 쪽"이 연달아 나오는 지점이 경계다.
+    // 한 열만 보면 노이즈에 걸리므로 몇 열이 이어지는지 본다.
+    const RUN = Math.max(2, (w * 0.03) | 0);
+    for (let x = 0; x < w; x++) {
+      let empty = 0;
+      for (let j = x; j < Math.min(w, x + RUN); j++) {
+        if (dist3(cols[j], R) < dist3(cols[j], L)) empty++;
+      }
+      if (empty === Math.min(RUN, w - x)) return x / w;
+    }
+    return 1;
+  }
+
+  function readHp(px) {
+    return barFill(px, hpRect, hpColor);
+  }
+
+  // 세로줄 하나씩 훑어서, 기준색과 비슷한 픽셀이 하나라도 있으면 "그 칸은 차 있다"로 센다.
+  // 게임마다 바 색이 달라도 동작하고, 바가 줄면 비율이 그대로 떨어진다.
+  function barFill(px, rect, color) {
+    if (!rect || !color) return null;
+    const x0 = rect.x * AW, y0 = rect.y * AH;
+    const w = rect.w * AW, h = rect.h * AH;
+    let filled = 0, total = 0;
+    for (let x = 0; x < w; x++) {
+      let hit = false;
+      for (let y = 0; y < h; y++) {
+        const i = (((y0 + y) | 0) * AW + ((x0 + x) | 0)) * 4;
+        const d =
+          Math.abs(px[i] - color[0]) + Math.abs(px[i + 1] - color[1]) + Math.abs(px[i + 2] - color[2]);
+        if (d < 110) { hit = true; break; }
+      }
+      total++;
+      if (hit) filled++;
+    }
+    return total ? filled / total : null;
+  }
+
+  // ---- 판단 ----
+  let epsilon = 0.15;
+  let lastObs = null, lastAction = null, lastActive = null;
+  let prevHp = null;
+  let prevHurt = false;
+  let prevXp = null;
+
+  // 피격은 프레임마다 판정된다. 그대로 세면 FPS가 곧 피격 횟수가 되고,
+  // 보상도 프레임 수에 비례해버린다. 횟수는 쿨다운을 두고 세고,
+  // 보상은 dt 를 곱해 "초당 얼마"로 만든다 — FPS가 변해도 같은 값이 나오게.
+  const HIT_COOLDOWN = 400; // ms. 이 안에 또 맞아도 한 번으로 센다
+  const HURT_PER_SEC = 6;   // 체력바를 못 읽을 때 쓰는 초당 감점
+  let lastHitAt = 0;
+
+  function countHit(now) {
+    if (now - lastHitAt < HIT_COOLDOWN) return false;
+    lastHitAt = now;
+    run.hits++;
+    return true;
+  }
+
+  // 바를 잘못 감싸면(예: 바 색이 배경과 비슷하면) 값이 늘 100%로 읽힌다.
+  // 그러면 경험치 항이 영원히 0인데 아무도 눈치채지 못한다. 오래 붙어 있으면 말해준다.
+  const STUCK_SEC = 45;
+  const stuck = { hp: { at: 0, val: null, warned: false }, xp: { at: 0, val: null, warned: false } };
+
+  function checkStuck(kind, value, now) {
+    const st = stuck[kind];
+    if (value === null) return;
+    if (st.val === null || Math.abs(value - st.val) > 0.005) {
+      st.val = value;
+      st.at = now;
+      return;
+    }
+    if (st.warned || now - st.at < STUCK_SEC * 1000) return;
+    st.warned = true;
+    const name = kind === "xp" ? "경험치" : "체력";
+    const pct = (value * 100).toFixed(0);
+    logger.push(
+      `<span class="bad">${name} 바가 ${STUCK_SEC}초 내내 ${pct}% 그대로입니다</span> ` +
+        '<span class="dim">— 영역을 잘못 잡았을 가능성이 큽니다. 바 색이 배경과 비슷하면 ' +
+        "배경까지 세어 늘 100%로 읽힙니다. 색이 뚜렷한 부분만 감싸 다시 지정해보세요.</span>"
+    );
+  }
+
+  // 나아지고 있는지 볼 수단이 없으면 다음 판단을 못 한다.
+  // 생존 시간은 학습에 쓰지 않는다 (한 판에 신호 하나뿐이라 배우기엔 너무 성기다). 점수판 용도다.
+  const run = { startedAt: 0, hits: 0, active: false, rewardSum: 0, steps: 0, rw: null };
+  let history = load("runs", []);
+
+  const newBreakdown = () => ({ hp: 0, escape: 0, xp: 0, gem: 0, step: 0 });
+
+  // ---- 블라인드 판 ----
+  // 화면을 가린 채 돌아다니게 해서, 본 판과 성적을 비교한다.
+  // 그냥 무작위로 매 프레임 방향을 바꾸면 제자리에서 떨기만 하므로,
+  // 한 방향을 잠깐 유지하다 바꾼다 — 사람이 눈 감고 돌아다니는 것과 비슷하게.
+  let blindDir = 0;
+  let blindUntil = 0;
+
+  function blindAction(now) {
+    if (now >= blindUntil) {
+      blindDir = Math.floor(Math.random() * 8);
+      blindUntil = now + 400 + Math.random() * 1100;
+    }
+    return blindDir;
+  }
+
+  // 블라인드 판에서도 피격은 똑같이 센다. 그래야 두 쪽을 비교할 수 있다.
+  // 학습은 하지 않는다 — 눈 감고 한 행동으로 배우면 뇌가 망가진다.
+  function trackHitsOnly(info) {
+    const nowMs = performance.now();
+    if (info.hp !== null && prevHp !== null && info.hp < prevHp - 0.005) countHit(nowMs);
+    else if (info.hurt) countHit(nowMs);
+    if (info.hp !== null) prevHp = info.hp;
+    prevHurt = info.hurt;
+  }
+
+  function nextRunBlind() {
+    const mode = el.vsBlindMode.value;
+    if (mode === "always") return true;
+    if (mode === "alternate") {
+      // 번갈아: 직전 판의 반대. 기록이 없으면 본 판부터.
+      const last = history[history.length - 1];
+      return last ? !last.blind : false;
+    }
+    return false;
+  }
+
+  function renderBlindStats() {
+    const seen = history.filter((r) => !r.blind);
+    const blind = history.filter((r) => r.blind);
+    const summ = (arr) => {
+      if (!arr.length) return null;
+      const sec = arr.reduce((a, r) => a + r.sec, 0) / arr.length;
+      const hpm = arr.reduce((a, r) => a + (r.hpm || 0), 0) / arr.length;
+      return { n: arr.length, sec, hpm };
+    };
+    const a = summ(seen), b = summ(blind);
+    const fmt = (x) =>
+      x ? `${x.n}판 · 평균 생존 ${Math.floor(x.sec / 60)}분 ${Math.round(x.sec % 60)}초 · 분당 피격 ${x.hpm.toFixed(1)}`
+        : "아직 없음";
+
+    let verdict = "";
+    if (a && b) {
+      if (a.n < 3 || b.n < 3) {
+        verdict = '<span class="dim">양쪽 다 3판 이상 모여야 믿을 만합니다</span>';
+      } else {
+        const ratio = a.sec / Math.max(1, b.sec);
+        verdict =
+          ratio > 1.3
+            ? `<span class="good">본 판이 ${ratio.toFixed(1)}배 오래 삽니다 — 화면을 보는 게 효과가 있습니다</span>`
+            : ratio > 1.05
+            ? `<span class="dim">본 판이 조금 낫습니다 (${ratio.toFixed(2)}배) — 판을 더 모아보세요</span>`
+            : `<span class="bad">본 판과 블라인드 판이 거의 같습니다 (${ratio.toFixed(2)}배) — 지금은 화면을 봐도 도움이 안 되고 있습니다</span>`;
+      }
+    }
+    el.vsBlindStats.innerHTML =
+      `<b>화면을 본 판</b> — ${fmt(a)}<br />` +
+      `<b>블라인드 판</b> — ${fmt(b)}` +
+      (verdict ? `<br />${verdict}` : "");
+  }
+
+  function startRun() {
+    run.startedAt = performance.now();
+    run.blind = nextRunBlind();
+    run.hits = 0;
+    run.rewardSum = 0;
+    run.steps = 0;
+    run.rw = newBreakdown();
+    for (const k of Object.keys(stuck)) stuck[k] = { at: 0, val: null, warned: false };
+    lastHitAt = 0;
+    pendingEnd = 0;
+    run.active = true;
+    pickedThisRun = [];
+    save("pickedThisRun", pickedThisRun);
+    logger.push(
+      run.blind
+        ? '<span class="good">판 시작</span> <span class="bad">블라인드 — 화면을 보지 않고 돌아다닙니다</span>'
+        : '<span class="good">판 시작</span>'
+    );
+  }
+
+  // 판을 끝내는 자리. 예전에는 'dead' 로 읽힐 때만 불렸는데, 그 화면을 못 읽거나
+  // 너무 빨리 넘어가면 그 판이 통째로 사라졌다. 기록이 안 쌓이면 다음 판 프롬프트에
+  // 실을 것이 없어서, 매번 아무것도 모르는 채로 새로 시작하게 된다.
+  // 끝났다는 판단은 바로 확정하지 않고 일단 보류한다.
+  // 부활 화면을 사망으로 잘못 읽어도, 플레이가 다시 시작되면 없던 일이 된다.
+  const RESUME_WINDOW = 15000; // 이 안에 플레이가 돌아오면 같은 판으로 본다
+  let pendingEnd = 0;
+  let pendingWhy = "";
+
+  function markEnd(why) {
+    if (!run.active || pendingEnd) return;
+    pendingEnd = performance.now(); // 끝난 시각은 지금으로 잡아둔다
+    pendingWhy = why;
+  }
+
+  function cancelEnd(why) {
+    if (!pendingEnd) return;
+    pendingEnd = 0;
+    logger.push(
+      `<span class="dim">${why} — 끝난 게 아니라 이어지는 판이었습니다. 기록하지 않고 계속합니다</span>`
+    );
+  }
+
+  function commitEnd() {
+    if (!pendingEnd) return;
+    const at = pendingEnd, why = pendingWhy;
+    pendingEnd = 0;
+    endRun(why, at);
+  }
+
+  function endRun(why, endedAt) {
+    if (!run.active) return;
+    run.active = false;
+    pendingEnd = 0;
+    // 보류하는 동안 흐른 시간은 생존 시간이 아니다. 끝났다고 본 그 시각으로 계산한다.
+    const sec = ((endedAt || performance.now()) - run.startedAt) / 1000;
+    if (sec < 3) {
+      logger.push(
+        `<span class="dim">${sec.toFixed(1)}초짜리 판은 기록하지 않습니다 (화면 인식이 튄 것으로 봅니다)</span>`
+      );
+      return;
+    }
+    const rec = {
+      sec: Math.round(sec),
+      hits: run.hits,
+      hpm: run.hits / (sec / 60),
+      avgReward: run.steps ? run.rewardSum / run.steps : 0,
+      rw: run.rw,
+      picks: pickedThisRun.slice(),
+      blind: !!run.blind,
+    };
+    history.push(rec);
+    if (history.length > 200) history.shift();
+    save("runs", history);
+    logger.push(
+      `<span class="good">판 종료</span> <span class="dim">(${why || "사망"})</span> ` +
+        `생존 ${Math.floor(rec.sec / 60)}분 ${rec.sec % 60}초 · ` +
+        `피격 ${rec.hits}회 (분당 ${rec.hpm.toFixed(1)}) · ` +
+        `<b>기록 ${history.length}판째</b> — 다음 판단에 같이 들어갑니다`
+    );
+    renderRuns();
+    renderBlindStats();
+    reportRun(rec);
+  }
+
+  // ---- 판이 끝나면: 무엇을 얻었는지 정리하고 목표를 놓는다 ----
+  // 목표는 판 단위다. 한 판이 끝나면 그 목표는 거기서 끝이고, 계속 같은 목표로
+  // 돌리고 싶을 때만 "목적 계속 반복"을 켠다. 안 켜져 있으면 목표 없이 쭉 진행한다.
+  function runSummaryText(rec) {
+    const picks = rec.picks?.length ? rec.picks.join(", ") : "고른 것 없음";
+    return (
+      `생존 ${Math.floor(rec.sec / 60)}분 ${rec.sec % 60}초 · 피격 ${rec.hits}회` +
+      ` (분당 ${rec.hpm.toFixed(1)}) · 가져간 것: ${picks}`
+    );
+  }
+
+  async function reportRun(rec) {
+    const goalWas = (el.vsGoal.value || "").trim();
+    const summary = runSummaryText(rec);
+    const repeat = el.vsGoalRepeat.checked;
+
+    el.vsRunResult.innerHTML =
+      `<b>이번 판에서 얻은 것</b> <span class="dim">(기록 ${history.length}판)</span><br />${summary}` +
+      (goalWas ? `<br /><span class="dim">목표였던 것: ${goalWas}</span>` : "");
+
+    // 목표가 있었으면 그 목표에 비춰 어땠는지 한 줄로 받아온다. 글자만 보내면 되는 일이다.
+    if (goalWas && el.vsModel.value && ws && ws.readyState === WebSocket.OPEN) {
+      const prompt = `A run of Vampire Survivors just ended.
+
+The player's goal for this run was (Korean):
+${goalWas}
+
+What actually happened:
+${summary}
+
+Did the run meet that goal? Answer in ONE short Korean sentence, plainly.
+
+Answer with ONLY a JSON object, nothing else:
+{"verdict": "<한국어 한 문장>"}`;
+      const res = await askBridge(
+        { type: "llm_ask", model: el.vsModel.value, prompt, timeout: 30 },
+        35000
+      );
+      const o = res.error ? null : parseJson(res.text);
+      const verdict = String(o?.verdict || "").slice(0, 100);
+      if (verdict) {
+        el.vsRunResult.innerHTML += `<br /><span class="good">${verdict}</span>`;
+        logger.push(`<span class="tag">판 정리</span> <span class="dim">${verdict}</span>`);
+      }
+    }
+
+    if (repeat) {
+      el.vsGoalState.textContent = "목표 유지";
+      el.vsRunResult.innerHTML += `<br /><span class="dim">목적 계속 반복이 켜져 있어 목표를 그대로 둡니다</span>`;
+    } else if (goalWas) {
+      el.vsGoal.value = "";
+      save("goal", "");
+      el.vsGoalState.textContent = "목표 비움";
+      el.vsRunResult.innerHTML += `<br /><span class="dim">목표는 여기서 끝냅니다. 이어서 할 일이 있으면 위에 다시 적어주세요.</span>`;
+    }
+  }
+
+  function renderRuns() {
+    if (!history.length) {
+      el.vsRuns.textContent = "기록 없음";
+      el.vsReward.textContent = "-";
+      return;
+    }
+    const last5 = history.slice(-5);
+    const best = history.reduce((a, b) => (b.sec > a.sec ? b : a));
+    const avgHpm = last5.reduce((a, r) => a + r.hpm, 0) / last5.length;
+    el.vsRuns.textContent =
+      `${history.length}판 · 최고 ${Math.floor(best.sec / 60)}분${best.sec % 60}초 · ` +
+      `최근 5판 평균 분당 피격 ${avgHpm.toFixed(1)}회`;
+    el.vsReward.innerHTML = rewardDiagnosis();
+  }
+
+  // 보상이 "좋은 보상"인지 보는 방법.
+  // 1) 무엇으로 이루어져 있나 — 체력 항이 0이면 체력바를 못 읽는 것이고,
+  //    그러면 여전히 픽셀 추정치만 보고 배우는 중이다.
+  // 2) 보상이 높았던 판이 실제로 오래 버텼나 — 상관이 없으면 보상이 목표를 반영하지 못하는 것이다.
+  function rewardDiagnosis() {
+    const recent = history.slice(-20).filter((r) => r.rw);
+    if (!recent.length) return "보상 기록 없음";
+
+    const sum = newBreakdown();
+    for (const r of recent) {
+      for (const k of Object.keys(sum)) sum[k] += r.rw[k] || 0;
+    }
+    const total = Object.values(sum).reduce((a, b) => a + b, 0) || 1;
+    const pct = (k) => ((sum[k] / total) * 100).toFixed(0);
+    const names = { hp: "피격", escape: "탈출여지", xp: "경험치", gem: "젬근접", step: "시간" };
+    const parts = Object.keys(sum).map((k) => `${names[k]} ${pct(k)}%`).join(" · ");
+
+    let verdict = "";
+    if (sum.hp === 0) {
+      verdict += ' <span class="bad">피격 항이 0 — 맞았는지를 못 읽고 있습니다</span>';
+    }
+    if (sum.xp === 0) {
+      verdict +=
+        ' <span class="bad">경험치 항이 0 — 무언가를 얻었다는 신호가 아예 없습니다.' +
+        ' 젬근접 항은 방향 분포일 뿐이라 먹었는지는 알려주지 않습니다.' +
+        ' 화면 설정에서 경험치 바를 지정해주세요</span>';
+    }
+
+    let corr = "";
+    if (recent.length >= 5) {
+      const c = pearson(recent.map((r) => r.avgReward), recent.map((r) => r.sec));
+      const judge =
+        c > 0.4 ? '<span class="good">보상이 생존을 잘 반영합니다</span>'
+        : c < 0.1 ? '<span class="bad">보상과 생존이 거의 무관합니다 — 보상 설계를 의심해야 합니다</span>'
+        : '<span class="dim">약한 관계</span>';
+      corr = `<br>보상↔생존 상관 ${c.toFixed(2)} (${recent.length}판) · ${judge}`;
+    } else {
+      corr = `<br><span class="dim">상관은 5판 이상 쌓이면 표시됩니다 (현재 ${recent.length}판)</span>`;
+    }
+    return `보상 구성: ${parts}${verdict}${corr}`;
+  }
+
+  function pearson(a, b) {
+    const n = a.length;
+    const ma = a.reduce((x, y) => x + y, 0) / n;
+    const mb = b.reduce((x, y) => x + y, 0) / n;
+    let num = 0, da = 0, db = 0;
+    for (let i = 0; i < n; i++) {
+      const x = a[i] - ma, y = b[i] - mb;
+      num += x * y; da += x * x; db += y * y;
+    }
+    const den = Math.sqrt(da * db);
+    return den < 1e-9 ? 0 : num / den;
+  }
+
+  // 규칙 기반 판단: 빠져나갈 여지가 큰 쪽으로, 적 압박은 피해서, 젬은 안전할 때만 욕심낸다.
+  // 뱀서는 최적 행동이 거의 이 형태라 학습 없이도 곧잘 움직인다.
+  // 학습은 이 위에 얹는다 (아래 blend).
+  function rulePolicy(field, lastDir) {
+    const wThreat = Number(el.vsAvoid.value) / 50; // 회피 성향 슬라이더
+    const wGem = Number(el.vsGreed.value) / 50; // 젬 욕심 슬라이더
+
+    // 위협의 무게중심을 구해서 그 반대쪽을 더 좋게 본다.
+    // 이게 없으면 "적 쪽으로 가지 마라"만 있고 "적 반대로 도망쳐라"가 없어서,
+    // 적이 없는 방향들이 전부 동점이 된다. 동점이면 첫 번째인 '위'가 뽑히므로
+    // 적이 오른쪽에 있든 왼쪽에 있든 위로 가버렸다 (반응 검사에서 드러났다).
+    let tx = 0, ty = 0;
+    for (let k = 0; k < 8; k++) {
+      tx += field.threat[k] * DIRS[k].ux;
+      ty += field.threat[k] * DIRS[k].uy;
+    }
+    const tlen = Math.hypot(tx, ty);
+    if (tlen > 1e-6) { tx /= tlen; ty /= tlen; }
+
+    const score = new Float32Array(8);
+    for (let d = 0; d < 8; d++) {
+      // 적 무게중심 쪽이면 -1, 정반대면 +1
+      const away = tlen > 1e-6 ? -(DIRS[d].ux * tx + DIRS[d].uy * ty) : 0;
+      // 적이 코앞이면 젬은 눈에 들어오지 않아야 한다
+      const safety = Math.min(1, field.escape[d] / 0.5);
+      const momentum = lastDir === null ? 0 : (DIRS[d].ux * DIRS[lastDir].ux + DIRS[d].uy * DIRS[lastDir].uy);
+      score[d] =
+        field.escape[d] * 1.6 -
+        field.threat[d] * wThreat +
+        away * wThreat * 0.8 + // 적 반대쪽으로 도망치기
+        field.gem[d] * wGem * safety +
+        momentum * 0.25; // 방향이 매 프레임 튀는 걸 막는다
+    }
+    return score;
+  }
+
+  function normalize(arr) {
+    let lo = Infinity, hi = -Infinity;
+    for (const v of arr) { if (v < lo) lo = v; if (v > hi) hi = v; }
+    const span = hi - lo || 1;
+    return Array.from(arr, (v) => (v - lo) / span);
+  }
+
+  // decide() 와 같은 계산이지만 학습도 하지 않고 무작위 탐험도 하지 않는다.
+  // "이 화면이면 어느 쪽을 고르나"만 알고 싶을 때 쓴다 (반응 검사, 시야 모니터).
+  function pureChoice(field, lastDir) {
+    const alpha = Number(el.vsAlpha.value) / 100;
+    const obs = [...field.threat, ...field.escape, ...field.gem];
+    const learned = normalize(brain.qValues(brain.encode(obs)));
+    const rule = normalize(rulePolicy(field, lastDir));
+    const score = rule.map((r, d) => (1 - alpha) * r + alpha * learned[d]);
+    let action = 0;
+    for (let d = 1; d < 8; d++) if (score[d] > score[action]) action = d;
+    return { action, score, rule, learned, alpha };
+  }
+
+  function decide(info) {
+    const alpha = Number(el.vsAlpha.value) / 100; // 학습에 맡기는 비중
+    const obs = [...info.field.threat, ...info.field.escape, ...info.field.gem];
+    const activeKC = brain.encode(obs);
+    const brainQ = brain.qValues(activeKC);
+
+    const ruleScore = normalize(rulePolicy(info.field, lastAction));
+    const learned = normalize(brainQ);
+    let action = 0;
+    let best = -Infinity;
+    for (let d = 0; d < 8; d++) {
+      const s = (1 - alpha) * ruleScore[d] + alpha * learned[d];
+      if (s > best) { best = s; action = d; }
+    }
+    const explored = Math.random() < epsilon * alpha; // 학습 비중만큼만 탐험한다
+    if (explored) action = Math.floor(Math.random() * 8);
+
+    if (lastObs && lastAction !== null) {
+      const nowMs = performance.now();
+      let hpTerm = 0;
+      if (info.hp !== null && prevHp !== null && info.hp < prevHp - 0.005) {
+        // 줄어든 체력만큼 감점한다. 이건 프레임 수와 무관하다 —
+        // 같은 양을 잃으면 몇 프레임에 걸쳐 잃든 합계가 같다.
+        hpTerm = -(prevHp - info.hp) * 12;
+        countHit(nowMs);
+      } else if (info.hurt) {
+        // 체력바를 못 읽을 때의 대비책. 계속 빨간 상태라면 계속 맞고 있는 것이므로
+        // 매 프레임 감점하되, dt 를 곱해 FPS가 달라도 초당 감점이 같게 한다.
+        hpTerm = -HURT_PER_SEC * lastDt;
+        countHit(nowMs);
+      }
+      prevHurt = info.hurt;
+      // 체력이 읽히면 그게 진짜 신호다. 없으면 "빠져나갈 여지"를 대신 쓴다.
+      const escTerm = (avg(info.field.escape) - avg(lastObs.escape)) * 0.5;
+
+      // 경험치가 올랐다 = 젬을 실제로 먹었다. 이건 의심할 여지가 없는 신호다.
+      // 레벨업으로 바가 리셋되면 음수가 크게 나오는데, 그건 잘못한 게 아니므로 무시한다.
+      let xpTerm = 0;
+      if (info.xp !== null && prevXp !== null) {
+        const d = info.xp - prevXp;
+        if (d > 0.002) xpTerm = Math.min(d, 0.2) * 10; // 인식이 튄 값은 잘라낸다
+      }
+      prevXp = info.xp;
+
+      // 젬 항은 "젬 쪽으로 가고 있나"에 불과하다. fieldFeatures 가 매 프레임 최대값으로
+      // 정규화하므로 양이 아니라 분포의 모양이고, 먹어서 사라지면 오히려 요동친다.
+      // 경험치를 읽고 있으면 그쪽이 진짜 신호이므로 이 항은 거의 꺼둔다.
+      const gemWeight = info.xp !== null ? 0.05 : 0.2;
+      const gemTerm = (avg(info.field.gem) - avg(lastObs.gem)) * gemWeight;
+      const stepTerm = -0.01;
+      const reward = hpTerm + escTerm + xpTerm + gemTerm + stepTerm;
+
+      // 보상이 실제로 무엇으로 이루어지는지 기록해둔다.
+      // 체력 항이 거의 0이면 체력바를 못 읽고 있다는 뜻이고, 그러면 학습은 여전히
+      // "픽셀 추정치"만 보고 있는 것이다 — 로그로 드러나야 알 수 있다.
+      if (run.rw) {
+        run.rw.hp += Math.abs(hpTerm);
+        run.rw.escape += Math.abs(escTerm);
+        run.rw.xp += Math.abs(xpTerm);
+        run.rw.gem += Math.abs(gemTerm);
+        run.rw.step += Math.abs(stepTerm);
+        run.rewardSum += reward;
+        run.steps++;
+      }
+
+      const dopamine = brain.learn(lastActive, lastAction, reward, obs, false);
+      logStep(DIRS[action].name, brainQ[action], explored, reward, dopamine, info, hpTerm, alpha);
+    }
+
+    if (info.hp !== null) prevHp = info.hp;
+    lastObs = info.field;
+    lastAction = action;
+    lastActive = activeKC;
+    return action;
+  }
+
+  // ---- 몰리 시야 ----
+  // 왼쪽: 뇌가 받는 24x24 격자 (빨강 = 적, 파랑 = 젬). 가운데 흰 점이 캐릭터.
+  // 오른쪽: 8방향 점수. 선이 길수록 그쪽을 좋게 본 것이고, 노란 굵은 선이 실제로 고른 방향.
+  // 아래 표: 방향마다 위협·탈출여지·젬·최종점수를 숫자로.
+  let lastTaken = null; // 실제로 누른 방향 (블라인드면 화면과 무관)
+  let lastWorldFrozen = false;
+  let lastTakenBlind = false;
+
+  function sightVisible() {
+    return document.querySelector('.vs-sec[data-sec="see"]')?.classList.contains("is-active");
+  }
+
+  function drawSight(info) {
+    const cv = el.vsSight;
+    const g = cv.getContext("2d");
+    const W = cv.width, H = cv.height;
+    g.fillStyle = "#12141b";
+    g.fillRect(0, 0, W, H);
+
+    // --- 왼쪽: 격자 (화면 사각형 전체를 덮는다) ---
+    const gh = H - 20;
+    const gw = Math.min(gh * geomAspect, W * 0.6);
+    const ox = 10, oy = 10, cw = gw / GRID_N, ch = gh / GRID_N;
+    const size = gw; // 오른쪽 점수판 위치 계산에 쓴다
+    for (let gy = 0; gy < GRID_N; gy++) {
+      for (let gx = 0; gx < GRID_N; gx++) {
+        const i = gy * GRID_N + gx;
+        const e = info.enemyGrid[i], m = info.gemGrid[i];
+        const r = Math.round(40 + 215 * Math.min(1, e));
+        const b = Math.round(40 + 215 * Math.min(1, m));
+        g.fillStyle = `rgb(${r},${Math.round(40 + 40 * Math.min(1, m))},${b})`;
+        g.fillRect(ox + gx * cw, oy + gy * ch, cw - 1, ch - 1);
+      }
+    }
+    g.strokeStyle = "rgba(255,255,255,0.25)";
+    g.strokeRect(ox - 0.5, oy - 0.5, gw, gh);
+    g.fillStyle = "#fff";
+    g.fillRect(ox + gw / 2 - 3, oy + gh / 2 - 3, 6, 6);
+    g.fillStyle = "#b6b6c0";
+    g.font = "14px NeoDunggeunmo, monospace";
+    g.fillText("뇌가 받는 격자 (화면 전체)", ox, oy + gh + 8);
+
+    // --- 오른쪽: 8방향 점수 ---
+    const choice = pureChoice(info.field, lastTaken);
+    const cx = ox + size + 40 + (W - (ox + size + 40)) / 2;
+    const cy = H / 2;
+    const R = Math.min(H / 2 - 24, (W - (ox + size + 40)) / 2 - 30);
+
+    g.strokeStyle = "rgba(255,255,255,0.12)";
+    for (const k of [0.25, 0.5, 0.75, 1]) {
+      g.beginPath();
+      g.arc(cx, cy, R * k, 0, Math.PI * 2);
+      g.stroke();
+    }
+
+    for (let d = 0; d < 8; d++) {
+      const ux = DIRS[d].ux, uy = DIRS[d].uy;
+      const sc = choice.score[d];
+      const picked = d === choice.action;
+      g.strokeStyle = picked ? "#ffd479" : "rgba(79,216,224,0.75)";
+      g.lineWidth = picked ? 6 : 3;
+      g.beginPath();
+      g.moveTo(cx, cy);
+      g.lineTo(cx + ux * R * Math.max(0.04, sc), cy + uy * R * Math.max(0.04, sc));
+      g.stroke();
+      // 위협이 있는 방향은 바깥쪽에 빨간 호로 표시
+      const th = info.field.threat[d];
+      if (th > 0.05) {
+        g.strokeStyle = `rgba(255,90,80,${0.3 + 0.7 * th})`;
+        g.lineWidth = 4;
+        const a = Math.atan2(uy, ux);
+        g.beginPath();
+        g.arc(cx, cy, R + 8, a - 0.3, a + 0.3);
+        g.stroke();
+      }
+      g.fillStyle = picked ? "#ffd479" : "#b6b6c0";
+      g.fillText(DIRS[d].name, cx + ux * (R + 20) - 14, cy + uy * (R + 20) + 5);
+    }
+    g.lineWidth = 1;
+
+    // 실제로 누른 방향 (블라인드면 화면과 무관한 방향)
+    if (lastTaken !== null && running) {
+      const ux = DIRS[lastTaken].ux, uy = DIRS[lastTaken].uy;
+      g.strokeStyle = lastTakenBlind ? "#ff7b6b" : "#7fd858";
+      g.setLineDash([4, 4]);
+      g.lineWidth = 2;
+      g.beginPath();
+      g.moveTo(cx, cy);
+      g.lineTo(cx + ux * R, cy + uy * R);
+      g.stroke();
+      g.setLineDash([]);
+      g.lineWidth = 1;
+    }
+
+    // --- 아래 표 ---
+    const rows = [];
+    for (let d = 0; d < 8; d++) {
+      const f = info.field;
+      const picked = d === choice.action;
+      rows.push(
+        `<tr${picked ? ' class="picked"' : ""}><td>${DIRS[d].name}</td>` +
+          `<td>${f.threat[d].toFixed(2)}</td><td>${f.escape[d].toFixed(2)}</td>` +
+          `<td>${f.gem[d].toFixed(2)}</td><td>${choice.score[d].toFixed(2)}</td></tr>`
+      );
+    }
+    el.vsSightTable.innerHTML =
+      "<tr><th>방향</th><th>위협</th><th>탈출여지</th><th>젬</th><th>최종점수</th></tr>" + rows.join("");
+
+    // 왜 그쪽인가 — 가장 위협적인 방향과 고른 방향을 한 줄로
+    let worst = 0;
+    for (let d = 1; d < 8; d++) if (info.field.threat[d] > info.field.threat[worst]) worst = d;
+    const f = info.field, a = choice.action;
+    const taken =
+      lastTaken === null || !running
+        ? ""
+        : lastTakenBlind
+        ? ` · <span class="bad">실제로는 ${DIRS[lastTaken].name} (블라인드 — 화면 무시)</span>`
+        : lastTaken === a
+        ? ` · <span class="good">실제로도 ${DIRS[lastTaken].name}</span>`
+        : ` · <span class="dim">실제로는 ${DIRS[lastTaken].name} (직전 방향 유지·탐험 때문)</span>`;
+    el.vsSightWhy.innerHTML =
+      `시야로 고를 방향: <b>${DIRS[a].name}</b> ` +
+      `<span class="dim">(탈출여지 ${f.escape[a].toFixed(2)} · 위협 ${f.threat[a].toFixed(2)} · 젬 ${f.gem[a].toFixed(2)})</span>` +
+      (f.threat[worst] > 0.05
+        ? ` · 가장 위험한 쪽은 <b>${DIRS[worst].name}</b> (위협 ${f.threat[worst].toFixed(2)})`
+        : " · <span class=\"dim\">주변에 적이 거의 없음</span>") +
+      taken +
+      `<br /><span class="dim">적 ${info.enemyCount} · 젬 ${info.gemCount} · 인식 흔들림 ${info.jitter.toFixed(3)} · ` +
+      `학습 비중 ${Math.round(choice.alpha * 100)}%</span>` +
+      `<br /><span class="dim">적 판별: ${
+        { color: "색", motion: "움직임", both: "색 + 움직임" }[el.vsEnemyMode.value]
+      }${info.usedMotion ? "" : " (이번 프레임은 색으로 대신함)"} · ` +
+      `카메라 이동 (${info.shift.dx}, ${info.shift.dy}) · 정렬 오차 ${info.shift.err.toFixed(1)}` +
+      `${info.shift.ok ? "" : " — 장면이 바뀜"} · 스스로 움직이는 점 ${info.movingCount}</span>` +
+      `<br /><span class="dim">게임 멈춤: <b>${lastWorldFrozen ? "예" : "아니오"}</b>` +
+      (info.outerMove !== null ? ` — 바깥 전장 움직임 ${(info.outerMove * 100).toFixed(2)}% (${STILL_RATIO * 100}% 미만 + 카메라 정지가 ${FREEZE_HOLD / 1000}초 이어지면 멈춤)` : "") +
+      `</span>`;
+  }
+
+  // ---- 반응 검사: 인공 상황을 넣어 고른 방향이 말이 되는지 ----
+  // 방향 d 쪽(과 양옆)의 칸에 값을 채운 격자를 만든다. 실제 격자 기하를 그대로 쓴다.
+  function blobGrid(dir, lo = 0.2, hi = 0.65, spread = 1) {
+    const g = new Float32Array(CELLS);
+    if (dir === null) return g;
+    for (let i = 0; i < CELLS; i++) {
+      const d = cellDir[i];
+      if (d < 0) continue;
+      const off = Math.min((d - dir + 8) % 8, (dir - d + 8) % 8);
+      if (off <= spread && cellDist[i] >= lo && cellDist[i] <= hi) g[i] = 1;
+    }
+    return g;
+  }
+
+  // 여덟 방향 중 한 쪽만 비워두고 나머지를 다 막은 격자
+  function ringExcept(gap) {
+    const g = new Float32Array(CELLS);
+    for (let i = 0; i < CELLS; i++) {
+      const d = cellDir[i];
+      if (d < 0 || d === gap) continue;
+      if (cellDist[i] >= 0.2 && cellDist[i] <= 0.6) g[i] = 1;
+    }
+    return g;
+  }
+
+  const dot = (a, b) => DIRS[a].ux * DIRS[b].ux + DIRS[a].uy * DIRS[b].uy;
+
+  function runProbe() {
+    // [이름, 적 격자, 젬 격자, 채점]
+    // 채점: 고른 방향이 "적이 있는 쪽과 반대"거나 "젬이 있는 쪽"이면 통과
+    const cases = [
+      ["적이 오른쪽에 몰림", blobGrid(2), blobGrid(null), (a) => dot(a, 2) < 0, "왼쪽 계열"],
+      ["적이 왼쪽에 몰림", blobGrid(6), blobGrid(null), (a) => dot(a, 6) < 0, "오른쪽 계열"],
+      ["적이 위쪽에 몰림", blobGrid(0), blobGrid(null), (a) => dot(a, 0) < 0, "아래쪽 계열"],
+      ["적이 아래쪽에 몰림", blobGrid(4), blobGrid(null), (a) => dot(a, 4) < 0, "위쪽 계열"],
+      ["적 없음, 젬이 오른쪽", blobGrid(null), blobGrid(2, 0.2, 0.7, 0), (a) => dot(a, 2) > 0.5, "오른쪽 계열"],
+      ["적 없음, 젬이 왼쪽", blobGrid(null), blobGrid(6, 0.2, 0.7, 0), (a) => dot(a, 6) > 0.5, "왼쪽 계열"],
+      ["사방이 막히고 왼아래만 뚫림", ringExcept(5), blobGrid(null), (a) => dot(a, 5) > 0.5, "왼아래 계열"],
+      ["사방이 막히고 오른위만 뚫림", ringExcept(1), blobGrid(null), (a) => dot(a, 1) > 0.5, "오른위 계열"],
+    ];
+
+    const rows = [];
+    let pass = 0, stable = 0;
+    for (const [name, eg, gg, ok, want] of cases) {
+      const field = fieldFeatures(eg, gg);
+      // 같은 상황을 5번 넣는다. 화면을 보고 정하는 것이라면 매번 같아야 한다.
+      const picks = [];
+      for (let k = 0; k < 5; k++) picks.push(pureChoice(field, null).action);
+      const a = picks[0];
+      const same = picks.every((p) => p === a);
+      const good = ok(a);
+      if (good) pass++;
+      if (same) stable++;
+      rows.push(
+        `<div>${good ? '<span class="good">통과</span>' : '<span class="bad">실패</span>'} ` +
+          `${name} → <b>${DIRS[a].name}</b> <span class="dim">(기대: ${want})</span>` +
+          (same ? "" : ` <span class="bad">· 5번 중 답이 흔들림: ${picks.map((p) => DIRS[p].name).join(",")}</span>`) +
+          "</div>"
+      );
+    }
+
+    // 텅 빈 화면은 기준선 — 여기서 고르는 방향에는 의미가 없다
+    const empty = pureChoice(fieldFeatures(blobGrid(null), blobGrid(null)), null).action;
+
+    const total = cases.length;
+    const verdict =
+      pass === total && stable === total
+        ? '<span class="good">화면에 반응합니다 — 상황을 바꾸면 고르는 방향도 말이 되게 바뀝니다</span>'
+        : pass >= total * 0.75
+        ? '<span class="dim">대체로 반응하지만 틀리는 상황이 있습니다 — 아래 실패 항목을 보세요</span>'
+        : '<span class="bad">화면과 무관하게 움직이는 것에 가깝습니다</span>';
+
+    const alpha = Number(el.vsAlpha.value);
+    el.vsProbeResult.innerHTML =
+      `<b>${pass}/${total} 통과 · 반복 일관성 ${stable}/${total}</b> — ${verdict}<br />` +
+      `<span class="dim">학습 비중 ${alpha}% 기준 (0%면 규칙만, 100%면 학습한 뇌만 시험합니다) · ` +
+      `텅 빈 화면에서는 ${DIRS[empty].name} (기준선, 의미 없음)</span>` +
+      rows.join("");
+    logger.push(`<span class="tag">반응 검사</span> ${pass}/${total} 통과 · 일관성 ${stable}/${total}`);
+  }
+
+  const avg = (a) => {
+    let s = 0;
+    for (const v of a) s += v;
+    return s / a.length;
+  };
+
+  function logStep(dirName, q, explored, reward, dopamine, info, hpTerm, alpha) {
+    if (!el.vsLogOn.checked) return;
+    const why = explored
+      ? `<span class="dim">무작위 탐험</span>`
+      : alpha === 0
+      ? `<span class="dim">규칙 기반</span>`
+      : `규칙 ${((1 - alpha) * 100) | 0}% + 학습 ${(alpha * 100) | 0}% <span class="dim">(Q ${fmtNum(q)})</span>`;
+    const hurt = hpTerm < 0 ? ` <span class="bad">피격 ${fmtNum(hpTerm)}</span>` : "";
+    const esc = avg(info.field.escape).toFixed(2);
+    logger.push(
+      `<span class="pick">${dirName}</span> · ${why} · 탈출여지 ${esc} · ` +
+        `적 ${info.enemyCount} 젬 ${info.gemCount}${hurt} · 보상 ${fmtNum(reward)} · DA ${fmtNum(dopamine)}`
+    );
+  }
+
+  // ---- 메뉴/레벨업 ----
+  // 마우스는 쓰지 않는다. 모니터가 여러 대면 창이 어느 모니터에 있는지 알 수 없어서
+  // 클릭이 엉뚱한 화면으로 간다. 키보드는 활성화된 창으로 그냥 들어가므로 그 문제가 없다.
+  //
+  // 메뉴에는 포기·종료처럼 되돌릴 수 없는 항목이 있어서 아무 키나 눌러보게 두지 않는다.
+  // 여기서 지정한 키만 누르고, 지정 안 하면 아무것도 하지 않는다. ESC는 절대 자동으로 누르지 않는다.
+  let lastActAt = 0;
+  let warnedNoLlm = false;
+  let warnedCardRect = false;
+  let sending = false;
+
+  async function handleMenu(state) {
+    if (heldKeys.length) { heldKeys = []; sendKeys([]); }
+    if (sending || llmBusy || idBusy) return;
+
+    // 방금 누른 키가 먹었는지 아직 지켜보는 중이면 또 누르지 않는다.
+    // 예전에는 1.4초만 지나면 다시 눌러서, 레벨업에서 고르고 난 뒤에
+    // 키가 한 번 더 나가 엉뚱한 것이 확정되곤 했다.
+    if (pendingMenu) return;
+
+    const now = performance.now();
+    if (now - lastActAt < 1400) return; // 화면이 넘어갈 시간을 준다
+
+    // 멈춘 화면은 전부 LLM이 지시한다. 예전에는 화면마다 누를 키를 미리 정해두고
+    // 실패하면 그걸로 떨어졌는데, 화면마다 눌러야 할 것이 달라서 맞을 수가 없었고
+    // LLM이 제대로 고른 뒤에도 그 키가 한 번 더 나갔다. 지웠다.
+    if (!el.vsLlmOn.checked || !el.vsModel.value) {
+      if (!warnedNoLlm) {
+        warnedNoLlm = true;
+        logger.push(
+          '<span class="bad">멈춘 화면인데 LLM이 꺼져 있습니다</span> ' +
+            '<span class="dim">— 무엇을 눌러야 할지 정할 수단이 없어 기다립니다. ' +
+            "LLM 설정에서 모델을 고르고 켜주세요.</span>"
+        );
+      }
+      el.vsLlmState.textContent = "꺼짐 — 대기";
+      return;
+    }
+    warnedNoLlm = false;
+
+    lastActAt = now;
+    llmBusy = true;
+
+    // 레벨업은 "몇 번째 카드"를 고르는 문제라 전용 경로를 쓴다.
+    if (state === "levelup") {
+      const nCards = Math.max(2, Math.min(5, Number(el.vsCards.value)));
+      const choice = await llmPickCard(nCards);
+      llmBusy = false;
+
+      if (!choice) {
+        el.vsLlmState.textContent = "실패 — 누르지 않고 대기";
+        return;
+      }
+      el.vsLlmState.textContent = `${choice.item} (${(choice.took || 0).toFixed(1)}초)`;
+      pickedThisRun.push(choice.item);
+      save("pickedThisRun", pickedThisRun);
+      // 무엇을 보고 어디로 갔는지 남긴다. 고른 것과 누른 게 어긋나면 바로 드러난다.
+      logger.push(
+        `<span class="tag">레벨업</span> <span class="pick">${choice.item}</span> ` +
+          `<span class="dim">[읽음: ${choice.options.join(" / ")}]</span> ` +
+          `<span class="dim">[${choice.from} → ${choice.item} · ${choice.keys.join(" ")}] </span>` +
+          `<span class="dim">${choice.why}</span>`
+      );
+      await tapSequence(choice.keys);
+      pendingMenu = { state, keys: choice.keys, at: performance.now() };
+      return;
+    }
+
+    // 나머지 멈춘 화면은 무슨 키를 누를지 자체를 LLM이 정한다.
+    const decided = await llmDecideKeys(state);
+    llmBusy = false;
+
+    if (!decided) {
+      el.vsLlmState.textContent = "실패 — 누르지 않고 대기";
+      return;
+    }
+    const shown = decided.keys.join(" → ") || "누르지 않음";
+    el.vsLlmState.textContent = `${shown} (${(decided.took || 0).toFixed(1)}초)`;
+    // 무엇을 보고 어디로 가려 했는지 남긴다. 잘못 읽으면 바로 알아챌 수 있게.
+    const from = decided.options?.[decided.sel - 1];
+    const to = decided.options?.[decided.tgt - 1];
+    const path = from && to ? `${from} → ${to}` : "";
+    logger.push(
+      `<span class="tag">${STATES[state] || state}</span> <span class="pick">${shown}</span> ` +
+        (path ? `<span class="dim">[${path}] </span>` : "") +
+        `<span class="dim">${decided.why}</span>`
+    );
+    if (decided.keys.length) {
+      await tapSequence(decided.keys);
+      pendingMenu = { state, keys: decided.keys, at: performance.now() };
+    }
+  }
+
+  // ---- 레벨업: LLM에게 맡기는 자리 ----
+  // 게임이 멈춰 있어서 몇 초 걸려도 되고, 아이템 조합은 학습으로 배우려면 수백 판이 필요한데
+  // LLM은 그냥 알고 있다. 반사 루프(초파리 뇌)는 건드리지 않는다.
+  let llmBusy = false;
+  let pickedThisRun = load("pickedThisRun", []);
+
+  // 분석용 캔버스(480x270)는 글씨를 읽기엔 너무 작다. 필요한 영역만 원본 해상도로 다시 잘라낸다.
+  // 무엇을 얼마만 한 크기로 잘라 보냈는지 같이 돌려준다.
+  // 글을 못 읽을 때 "이미지가 작아서인가"를 따지려면 이 숫자가 있어야 한다.
+  function cropRegion(rect, maxSide) {
+    const r = rect || { x: 0, y: 0, w: 1, h: 1 };
+    const vw = video.videoWidth, vh = video.videoHeight;
+    if (!vw) return null;
+    const sw = Math.max(1, Math.round(r.w * vw));
+    const sh = Math.max(1, Math.round(r.h * vh));
+    const scale = Math.min(1, maxSide / Math.max(sw, sh)); // 비율은 유지한 채 줄인다
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(sw * scale));
+    c.height = Math.max(1, Math.round(sh * scale));
+    c.getContext("2d").drawImage(video, r.x * vw, r.y * vh, sw, sh, 0, 0, c.width, c.height);
+    return {
+      b64: c.toDataURL("image/jpeg", 0.9).split(",")[1],
+      w: c.width,
+      h: c.height,
+      srcW: sw,
+      srcH: sh,
+      scaled: scale < 1,
+    };
+  }
+
+  function cropCards() {
+    return cropRegion(cardRect || gameRect, LEVELUP_MAX_SIDE)?.b64 || null;
+  }
+
+  // ---- 지시 · 한국어 응답 ----
+  // 사용자가 적어둔 목표. 멈춘 화면에서 무엇을 기준으로 고를지의 근거가 된다.
+  const DEFAULT_GOAL = "게임을 시작해서 최대한 오래 살아남아라. 죽으면 바로 다시 시작해라.";
+
+  function goalText() {
+    return (el.vsGoal.value || "").trim() || DEFAULT_GOAL;
+  }
+
+  // 모델이 영어로 답하면 사용자가 로그를 읽을 수 없다. 기계가 읽는 값(screen, target, keys)은
+  // 영어 그대로 두고, 사람이 읽는 설명만 한국어로 받는다.
+  const KOREAN_RULE =
+    'Write the "why" field in KOREAN (한국어). ' +
+    "Keep the other fields exactly as specified in English.";
+
+  // ---- 지금 보고 있는 화면에 붙은 메모 ----
+  // 예전에는 메모를 하나의 전역 목록으로 들고 다녔다. 그러면 관계없는 화면을 볼 때도
+  // 전부 따라 들어가서, 메모가 쌓일수록 모든 판단이 그 말들에 끌려간다.
+  // 메모는 그 화면을 보고 있을 때만 쓴다.
+  let lastMatch = null; // 이번 프레임이 어느 기억과 맞았는지
+
+  function noteBlock() {
+    const note = lastMatch?.note;
+    if (!note) return "";
+    return (
+      "\nWhat the player told you about THIS screen (Korean). Trust it over your own guess:\n" +
+      `- ${note}\n`
+    );
+  }
+
+  function renderHints() {
+    const rows = [];
+    for (const [name, samples] of Object.entries(taught)) {
+      for (const s of samples) {
+        if (s.note) rows.push(`<b>${STATES[name] || name}</b> — ${s.note}`);
+      }
+    }
+    if (!rows.length) {
+      el.vsHints.textContent =
+        "아직 알려준 것이 없습니다. 메모는 그때 보이던 화면에 붙고, 그 화면일 때만 쓰입니다.";
+      return;
+    }
+    el.vsHints.innerHTML =
+      `화면에 붙은 메모 ${rows.length}개 — 그 화면이 뜰 때만 쓰입니다<br />` + rows.join("<br />");
+  }
+
+  // 사용자가 만든 종류는 모델이 알 리 없다. 이름과, 그 화면에 붙여둔 메모를 같이 알려준다.
+  function customStateBlock() {
+    const rows = Object.entries(customStates).map(([k, ko]) => {
+      const note = (taught[k] || []).map((x) => x.note).filter(Boolean)[0];
+      return k + " - " + ko + (note ? ": " + note : "");
+    });
+    return rows.length ? rows.join("\n") + "\n" : "";
+  }
+
+  // ---- 지금 무슨 화면인가: LLM에게 묻고, 한 번 물으면 기억한다 ----
+  // 매 프레임 물을 수는 없다(한 번에 몇 초씩 걸린다). 대신 레벨업·메뉴·사망은 전부
+  // 화면이 멈춘다는 점을 쓴다. "멈췄는데 처음 보는 화면"일 때만 한 번 묻고,
+  // 답을 받으면 그 썸네일을 기억하니 같은 화면을 두 번 묻지 않는다.
+  const idPrompt = () => `This image is a screenshot of the game Vampire Survivors.
+Which screen is it? Choose exactly one:
+
+play    - normal gameplay: the character is on the battlefield with monsters, nothing is paused
+levelup - a level-up / upgrade screen: a vertical list of option cards to choose from
+menu    - title screen, character select, stage select, pause menu or settings
+dead    - the run is truly OVER and it is showing the outcome: a results table, score
+          summary, time survived, enemies killed, or gold earned
+chest   - a treasure chest is opening and showing what was won
+revive  - the SAME run can still be saved: the game offers to resurrect the character and
+          carry on where they fell, usually with a countdown and a Revive / Continue button
+${customStateBlock()}
+Tell dead and revive apart by what is on offer, not by the words "you died":
+- Revive / Continue / resurrect, keeping the same run going  -> revive
+- Retry / Restart / Main Menu / Play Again, which would start a NEW run  -> dead
+- A results table with time, kills or gold, and no way to resume  -> dead
+${noteBlock()}
+${KOREAN_RULE}
+
+Answer with ONLY a JSON object, nothing else:
+{"screen": "<one of the keys listed above>", "why": "<무엇이 보이는지 한국어로 한 문장>"}`;
+
+  const FREEZE_MOTION = 0.6; // 이보다 움직임이 적으면 멈춘 것으로 본다
+  const FREEZE_HOLD = 500;   // 그 상태가 이만큼 이어져야 진짜 멈춤
+  const ID_COOLDOWN = 8000;  // 실패했을 때 다시 묻기까지
+  let frozenSince = 0;
+  let lastIdAt = 0;
+  let idBusy = false;
+
+  // 모델이 VRAM에 없으면 첫 호출이 수십 초 걸린다. 레벨업 화면은 멈춰 있으니 견딜 만하지만,
+  // 플레이 중에 잘못 물으면 그동안 몰리가 가만히 서 있다가 죽는다. 켜는 순간에 미리 올려둔다.
+  let warming = false;
+
+  async function warmModel() {
+    const model = el.vsModel.value;
+    if (!model || warming) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    warming = true;
+    el.vsIdState.textContent = "모델 올리는 중...";
+    const t0 = performance.now();
+    const res = await askBridge({ type: "llm_ask", model, prompt: "ok", timeout: 120 }, 125000);
+    warming = false;
+    const sec = (performance.now() - t0) / 1000;
+    if (res.error) {
+      el.vsIdState.textContent = "예열 실패";
+      logger.push(`<span class="bad">모델 예열 실패: ${res.error}</span>`);
+    } else {
+      el.vsIdState.textContent = "준비됨";
+      logger.push(`<span class="good">${model} 준비됨 (${sec.toFixed(1)}초) — 이제 판별은 몇 초면 끝납니다</span>`);
+    }
+  }
+
+  async function identifyScreen() {
+    const model = el.vsModel.value;
+    if (!model) return { error: "모델이 선택되지 않음" };
+    const crop = cropRegion(gameRect, 640);
+    if (!crop) return { error: "화면을 잘라내지 못함" };
+    const image = crop.b64;
+
+    const res = await askBridge(
+      { type: "llm_ask", model, prompt: idPrompt(), image, timeout: 40 },
+      45000
+    );
+    if (res.error) return { error: res.error };
+    const o = parseJson(res.text);
+    if (!o) return { error: "응답을 해석 못 함" };
+    const st = String(o.screen || "").trim().toLowerCase();
+    if (!STATES[st]) return { error: `모르는 답: ${st || "(빈 값)"}` };
+    return { state: st, why: String(o.why || "").slice(0, 80), took: res.took };
+  }
+
+  // frozen: 게임이 멈췄나 (바깥 전장 기준, 이미 FREEZE_HOLD 만큼 이어진 것)
+  async function maybeIdentify(cls, frozen, now) {
+    if (!el.vsIdOn.checked) return;
+    if (idBusy || llmBusy || sending || warming) return;
+    if (!cls.guessed) return; // 이미 아는 화면이면 물을 이유가 없다
+    // 멈춘 화면에서만 묻는다. 예전에는 화면 전체 변화량으로 봐서, 레벨업 창의
+    // 반짝임만으로도 "움직인다" 가 되어 여기서 막혔다.
+    if (!frozen) return;
+    if (now - lastIdAt < ID_COOLDOWN) return;
+
+    lastIdAt = now;
+    idBusy = true;
+    el.vsIdState.textContent = "화면 확인 중...";
+    const snap = lastThumb; // 물어본 그 순간의 화면. 답이 와도 기준은 이것이다
+    const r = await identifyScreen();
+    idBusy = false;
+
+    if (r.error) {
+      el.vsIdState.textContent = `실패: ${r.error}`;
+      logger.push(`<span class="bad">화면 판별 실패: ${r.error}</span>`);
+      return;
+    }
+    // 묻는 몇 초 사이에 화면이 넘어갔으면 그 답을 지금 화면에 붙이면 안 된다
+    if (!snap || !lastThumb || thumbDist(snap, lastThumb) > MATCH_THRESHOLD) {
+      el.vsIdState.textContent = "묻는 사이 화면이 바뀜 — 버림";
+      return;
+    }
+    el.vsIdState.textContent = `${STATES[r.state]} (${(r.took || 0).toFixed(1)}초)`;
+    teach(r.state, snap);
+    logger.push(
+      `<span class="tag">화면 판별</span> <span class="pick">${STATES[r.state]}</span> ` +
+        `<span class="dim">${r.why} — 이제 이 화면은 묻지 않고 바로 압니다</span>`
+    );
+  }
+
+  // ---- 멈춘 화면: 무슨 키를 누를지 LLM이 정한다 ----
+  // 아무 키나 눌러보게 두면 안 된다. 예전에 그렇게 했다가 ESC를 눌러 게임이 꺼진 적이 있다.
+  // 고를 수 있는 키를 아래 목록으로 묶고, 모델이 뭐라고 답하든 목록 밖은 전부 버린다.
+  // 애초에 모델은 키를 고르지 않는다 — 항목 이름만 말하고 키는 코드가 만든다.
+  // 레벨업 카드는 글씨를 읽어야 해서 다른 화면보다 크게 잘라 보낸다.
+  const LEVELUP_MAX_SIDE = 1280;
+
+  // ---- 레벨업에서 무엇을 읽었는지 ----
+  // 잘못 읽는 걸 고치려면 무엇을 읽었는지가 남아야 한다. 판을 넘겨도 볼 수 있게 저장한다.
+  let readLog = load("readLog", []);
+  const MAX_READ_LOG = 12;
+
+  function pushRead(rec) {
+    rec.run = runNo();
+    rec.runSec = run.active ? Math.round((performance.now() - run.startedAt) / 1000) : null;
+    readLog.push(rec);
+    while (readLog.length > MAX_READ_LOG) readLog.shift();
+    save("readLog", readLog);
+    renderReadLog();
+  }
+
+  function renderReadLog() {
+    if (!readLog.length) {
+      el.vsReadLog.textContent =
+        "아직 레벨업 화면을 읽은 적이 없습니다. 읽은 카드 이름이 실제와 다르면 여기서 바로 보입니다.";
+      return;
+    }
+    el.vsReadLog.innerHTML = readLog
+      .slice()
+      .reverse()
+      .map((r) => {
+        // 카드마다 이름과 설명을 같이 보여준다. 실제 카드와 다르게 읽었으면 여기서 드러난다.
+        const opts = (r.options || [])
+          .map((o, i) => {
+            const d = r.descs?.[i];
+            const body = d ? `${o} <span class="dim">(${d})</span>` : o;
+            return o === r.picked ? `<b class="good">${body}</b>` : body;
+          })
+          .join(" / ");
+        const sel = r.selected ? ` · 선택돼 있던 것: ${r.selected}` : "";
+        const keys = r.keys?.length ? ` · 누름: ${r.keys.join(" ")}` : "";
+        const btn = r.buttons?.length ? ` · 버튼: ${r.buttons.join(", ")}` : "";
+        // 두 번 읽어 달랐으면 둘 다 보여준다. 지어낸 것인지 한눈에 드러난다.
+        const second =
+          r.options2 && r.options2.join("|") !== (r.options || []).join("|")
+            ? `<br /><span class="bad">　2차 판독: ${r.options2.join(" / ") || "(없음)"}</span>`
+            : "";
+        const when =
+          r.runSec === null || r.runSec === undefined
+            ? ""
+            : ` <span class="dim">${Math.floor(r.runSec / 60)}:${String(r.runSec % 60).padStart(2, "0")}</span>`;
+        return (
+          `<div><span class="dim">${r.at}</span> ` +
+          (r.test ? '<span class="pick">사진</span> ' : `<span class="tag">${r.run || "?"}판</span>${when} `) +
+          `<span class="dim">[${r.imgW}x${r.imgH}${r.test ? "" : r.tight ? " 카드영역" : " 화면전체"}]</span> ` +
+          `카드 ${(r.options || []).length}장: ${opts}${sel}${keys}${btn}` +
+          second +
+          (r.why ? `<br /><span class="dim">　${r.why}</span>` : "") +
+          "</div>"
+        );
+      })
+      .join("");
+  }
+
+  const MENU_KEYS = ["enter", "space", "up", "down", "left", "right"];
+  const MAX_MENU_KEYS = 4;
+
+  // ---- 1단계: 그림을 보고 화면을 읽는다 (판단은 시키지 않는다) ----
+  function buildSeePrompt(state) {
+    const KIND = {
+      dead: "results / game-over",
+      chest: "treasure chest reward",
+      revive: "revive / continue offer",
+    };
+    return `This image is a screenshot of Vampire Survivors.
+Gameplay is paused on a ${KIND[state] || "title or menu"} screen.
+If there is nothing to choose — the screen is just showing a reward and waiting for any
+key — then report the single button or prompt that dismisses it as the only option.
+
+Report ONLY what you can see. Do not decide anything, do not choose anything.
+
+1. "options" - every selectable option on this screen, as printed, in screen order
+   (top to bottom, or left to right).
+2. "layout" - "vertical" if the options are stacked, "horizontal" if side by side.
+3. "selected" - the option that is ALREADY highlighted, copied word for word from your own
+   options list. Exactly one option looks different: brighter fill, thicker or lighter
+   border, larger text, or an arrow/cursor next to it. Find that one.
+${noteBlock()}
+${KOREAN_RULE.replace('"why"', '"sees"')}
+
+Answer with ONLY a JSON object, nothing else:
+{"options": ["<label of option 1>", "<label of option 2>"], "layout": "vertical", "selected": "<label of the highlighted one>", "sees": "<화면에 무엇이 보이는지 한국어로 한 문장>"}`;
+  }
+
+  // ---- 2단계: 글자만 보고 무엇을 고를지 정한다 (그림을 같이 주지 않는다) ----
+  // 그림과 함께 물으면 화면에 끌려가서 엉뚱한 항목을 고른다. 목록만 주면 잘 고른다.
+  function buildTargetPrompt(options, state) {
+    const KIND = {
+      dead: "results / game-over",
+      chest: "treasure chest reward",
+      revive: "revive / continue offer",
+    };
+    const past = history
+      .slice(-5)
+      .map((r) => `- ${Math.floor(r.sec / 60)}분 ${Math.round(r.sec % 60)}초 생존`)
+      .join("\n") || "(기록 없음)";
+    const list = options.map((o, i) => `${i + 1}. ${o}`).join("\n");
+
+    return `You are operating a menu in the game Vampire Survivors.
+This is the ${KIND[state] || "title or menu"} screen.
+
+These are the options on screen right now, in order:
+${list}
+
+The player's instruction:
+${goalText()}
+
+Recent runs:
+${past}
+
+Which single option carries out that instruction? Copy it exactly from the list above.
+If none of them do, answer "".
+Never choose quit, exit, or give up.
+${noteBlock()}
+${KOREAN_RULE}
+
+Answer with ONLY a JSON object, nothing else:
+{"target": "<option, copied exactly>", "why": "<왜 그 항목인지 한국어로 한 문장>"}`;
+  }
+
+  function parseJson(text) {
+    const m = (text || "").match(/\{[\s\S]*?\}/);
+    if (!m) return null;
+    try {
+      return JSON.parse(m[0]);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // 모델이 준 이름을 목록에서 찾아 번호로 바꾼다. 번호로 직접 물으면 지금 선택된 번호를
+  // 그대로 복사하는 실패가 잦아서, 이름으로 받고 번호는 여기서 찾는다.
+  function indexOfOption(options, value) {
+    const v = String(value ?? "").trim().toLowerCase();
+    if (!v) return -1;
+    // 굳이 번호로 답했다면 그것도 받아준다
+    const n = parseInt(v, 10);
+    if (String(n) === v) return n >= 1 && n <= options.length ? n - 1 : -1;
+
+    const norm = options.map((o) => o.trim().toLowerCase());
+    let i = norm.indexOf(v);
+    if (i >= 0) return i;
+    // "MAIN MENU" 를 "main menu button" 처럼 덧붙여 답하는 경우
+    return norm.findIndex((o) => o && (o.includes(v) || v.includes(o)));
+  }
+
+  async function llmDecideKeys(state) {
+    const model = el.vsModel.value;
+    if (!model) return null;
+    const crop = cropRegion(gameRect, 900);
+    if (!crop) return null;
+    const image = crop.b64;
+
+    // --- 1단계: 화면 읽기 ---
+    el.vsLlmState.textContent = "화면 읽는 중...";
+    const seenRes = await askBridge(
+      { type: "llm_ask", model, prompt: buildSeePrompt(state), image, timeout: 40 },
+      45000
+    );
+    if (seenRes.error) {
+      logger.push(`<span class="bad">LLM 실패: ${seenRes.error} — 누르지 않고 기다립니다</span>`);
+      return null;
+    }
+    const seen = parseJson(seenRes.text);
+    const options = (Array.isArray(seen?.options) ? seen.options : [])
+      .map((x) => String(x || "").trim().slice(0, 24))
+      .filter(Boolean);
+    if (!options.length) {
+      logger.push('<span class="bad">화면에서 고를 항목을 못 읽었습니다 — 누르지 않고 기다립니다</span>');
+      return null;
+    }
+    const si = indexOfOption(options, seen.selected);
+    if (si < 0) {
+      logger.push('<span class="bad">지금 뭐가 선택돼 있는지 못 읽었습니다 — 누르지 않고 기다립니다</span>');
+      return null;
+    }
+
+    // --- 2단계: 무엇을 고를지 (그림 없이) ---
+    el.vsLlmState.textContent = "고르는 중...";
+    const pickRes = await askBridge(
+      { type: "llm_ask", model, prompt: buildTargetPrompt(options, state), timeout: 40 },
+      45000
+    );
+    if (pickRes.error) {
+      logger.push(`<span class="bad">LLM 실패: ${pickRes.error} — 누르지 않고 기다립니다</span>`);
+      return null;
+    }
+    const picked = parseJson(pickRes.text);
+    const why = String(picked?.why || "").slice(0, 80);
+    const took = (seenRes.took || 0) + (pickRes.took || 0);
+
+    // 빈 답 = 이 화면에서는 아직 누를 게 없다는 뜻
+    if (!String(picked?.target ?? "").trim()) {
+      return { keys: [], options, sel: si + 1, tgt: 0, why, sees: seen.sees, took };
+    }
+    const ti = indexOfOption(options, picked.target);
+    if (ti < 0) {
+      logger.push(
+        `<span class="bad">LLM이 말한 "${picked.target}"를 목록에서 못 찾았습니다 — 누르지 않고 기다립니다</span>`
+      );
+      return null;
+    }
+
+    // --- 3단계: 방향키 몇 번인지는 코드가 센다. 모델에게 시키면 자주 틀린다 ---
+    const steps = ti - si;
+    const horizontal = String(seen.layout || "").toLowerCase() === "horizontal";
+    const move = horizontal ? (steps > 0 ? "right" : "left") : steps > 0 ? "down" : "up";
+    const n = Math.min(Math.abs(steps), MAX_MENU_KEYS - 1);
+    const keys = [...Array(n).fill(move), "enter"].filter((k) => MENU_KEYS.includes(k));
+
+    return { keys, options, sel: si + 1, tgt: ti + 1, why, sees: seen.sees, took };
+  }
+
+  async function tapSequence(keys) {
+    sending = true;
+    for (const k of keys) {
+      sendTap(k);
+      await new Promise((r) => setTimeout(r, 260));
+    }
+    sending = false;
+  }
+
+  // ---- 레벨업 1단계: 그림을 보고 무엇이 있는지만 읽는다 ----
+  // 예전에는 "몇 번째 카드를 고를래?"를 한 번에 물었다. 그랬더니 why 에는 옳은 이름을
+  // 써놓고 번호는 엉뚱한 걸 내는 일이 생겼고(= 추론과 다른 아이템 선택),
+  // 카드만 세고 있어서 새로고침·건너뛰기·지우기 버튼은 셈에 들어가지도 않았다.
+  function buildSeeLevelPrompt(nCards) {
+    return `This image is a LEVEL-UP screen from the game Vampire Survivors.
+
+Report ONLY what you can see. Do not decide anything, do not choose anything.
+
+Read the UPGRADE CARDS only. Each card is a row with an icon on the left, a weapon or
+item name in larger text, and a description line underneath.
+
+1. "options" - the name printed on each upgrade card, from top to bottom.
+   Copy the characters exactly as printed, including spacing and capitalisation.
+   The game may be running in Korean — if a name is written in Hangul (한글), copy the
+   Hangul exactly, character by character. Never translate it, never romanise it.
+   Do NOT include Reroll, Skip, Banish, or any other button — those are not cards.
+   Do NOT include the description lines.
+
+   If you cannot actually read a card's text, write "?" for that card.
+   Never replace unreadable text with the name of an item you happen to know —
+   a wrong name is far worse than "?", because the program will act on it.
+2. "descs" - the description line under each card, in the same order, so the list lines up
+   with "options". Use an empty string when a card has no description you can read.
+3. "selected" - the card that is ALREADY highlighted, copied word for word from your own
+   options list. Exactly one looks different: brighter fill, thicker or lighter border,
+   larger text, or an arrow/cursor next to it.
+4. "buttons" - separately, the labels of any side buttons you can see, such as
+   Reroll, Skip or Banish. These are NOT cards and must not appear in "options".
+
+There are usually about ${nCards} upgrade cards, but trust the image over that number.
+${noteBlock()}
+
+${KOREAN_RULE.replace('"why"', '"sees"')}
+
+Answer with ONLY a JSON object, nothing else:
+{"options": ["<name on card 1>", "<name on card 2>"], "descs": ["<its description>", "<its description>"], "selected": "<name of the highlighted card>", "buttons": ["<button label>"], "sees": "<화면에 무엇이 보이는지 한국어로 한 문장>"}`;
+  }
+
+  // ---- 레벨업 2단계: 그림 없이, 목록만 보고 무엇을 고를지 정한다 ----
+  function buildPickPrompt(options, descs) {
+    const have = pickedThisRun.length ? pickedThisRun.join(", ") : "(아직 없음)";
+    const past = history
+      .slice(-8)
+      .filter((r) => r.picks && r.picks.length)
+      .map((r) => `- ${Math.floor(r.sec / 60)}분 생존: ${r.picks.join(", ")}`)
+      .join("\n") || "(기록 없음)";
+    const list = options
+      .map((o, i) => {
+        const d = (descs && descs[i]) || "";
+        return `${i + 1}. ${o}` + (d ? ` — ${d}` : "");
+      })
+      .join("\n");
+
+    return `You are choosing what to take on a level-up screen in Vampire Survivors.
+
+These are the choices on screen right now, in order:
+${list}
+
+What the player is going for this run (background only — this is NOT an instruction to
+carry out here, and it never means restart, quit or leave this screen. You are only
+choosing one upgrade card):
+${goalText()}
+
+Already taken this run: ${have}
+
+Outcomes of past runs (survival time and what was taken):
+${past}
+
+Every entry above is an upgrade card. Reroll, Skip and Banish are not offered here —
+do not answer with those.
+
+Pick the single best upgrade for long-term survival. Prefer completing strong
+weapon+passive synergies and evolutions over spreading thin.
+
+Pick exactly one and copy it exactly from the list above.
+
+${KOREAN_RULE}
+
+Answer with ONLY a JSON object, nothing else:
+{"target": "<copied exactly from the list>", "why": "<왜 그걸 골랐는지 한국어로 한 문장>"}`;
+  }
+
+  // 메뉴 쪽과 같은 흐름이다: 보고 → 고르고 → 코드가 방향키를 센다.
+  // testImage 를 주면 화면 대신 그 사진으로 돌린다 (사진 시험 버튼용).
+  async function llmPickCard(nCards, testImage) {
+    const model = el.vsModel.value;
+    if (!model) return null;
+    // 카드 영역을 지정했으면 그 부분만, 아니면 게임 화면 전체를 보낸다.
+    //
+    // 처음에는 "글씨가 작아서 못 읽나" 싶어 좁게 자르는 쪽이 낫다고 생각했는데,
+    // 재보니 반대였다. 1920x1080 을 900 으로 줄여 보내도 카드 이름과 옆 버튼을
+    // 전부 읽는다. 반면 카드만 좁게 자르면 새로고침·건너뛰기·지우기가 크롭 밖으로
+    // 밀려나 아예 안 보인다. 크기보다 범위가 중요하다.
+    const crop = testImage
+      ? { b64: testImage.b64, w: testImage.w, h: testImage.h }
+      : cropRegion(cardRect || gameRect, LEVELUP_MAX_SIDE);
+    if (!crop) return null;
+    const image = crop.b64;
+    if (!testImage && cardRect && !warnedCardRect) {
+      warnedCardRect = true;
+      logger.push(
+        '<span class="bad">카드 영역만 잘라 보내고 있습니다</span> ' +
+          '<span class="dim">— 그 안에 새로고침·건너뛰기·지우기까지 들어가 있지 않으면 ' +
+          "그 버튼들은 몰리 눈에 아예 안 보입니다. 확실하지 않으면 화면 설정에서 " +
+          "카드 영역 지정을 지우고 게임 화면 전체를 쓰는 편이 낫습니다.</span>"
+      );
+    }
+
+    // --- 1단계: 화면 읽기 ---
+    el.vsLlmState.textContent = "카드 읽는 중...";
+    const seenRes = await askBridge(
+      { type: "llm_ask", model, prompt: buildSeeLevelPrompt(nCards), image, timeout: 40 },
+      45000
+    );
+    if (seenRes.error) {
+      logger.push(`<span class="bad">LLM 실패: ${seenRes.error} — 지정한 키로 갑니다</span>`);
+      return null;
+    }
+    const seen = parseJson(seenRes.text);
+    const options = (Array.isArray(seen?.options) ? seen.options : [])
+      .map((x) => String(x || "").trim().slice(0, 24))
+      .filter(Boolean);
+    if (!options.length) {
+      pushRead({
+        at: new Date().toLocaleTimeString("ko-KR", { hour12: false }),
+        options: [],
+        why: "카드를 하나도 못 읽었습니다",
+        imgW: crop.w,
+        imgH: crop.h,
+        tight: !!cardRect,
+      });
+      logger.push('<span class="bad">카드를 못 읽었습니다 — 누르지 않고 기다립니다</span>');
+      return null;
+    }
+    // 한 번 더 읽혀 대조한다. 지어낸 이름은 매번 달라지고, 실제로 읽은 이름은 그대로다.
+    // 게임이 멈춰 있는 화면이라 몇 초 더 써도 된다.
+    el.vsLlmState.textContent = "한 번 더 확인 중...";
+    const seen2Res = await askBridge(
+      { type: "llm_ask", model, prompt: buildSeeLevelPrompt(nCards), image, timeout: 40 },
+      45000
+    );
+    const seen2 = seen2Res.error ? null : parseJson(seen2Res.text);
+    const options2 = (Array.isArray(seen2?.options) ? seen2.options : [])
+      .map((x) => String(x || "").trim().slice(0, 24))
+      .filter(Boolean);
+
+    // 두 판독이 딴판인 자리는 못 읽은 것으로 본다.
+    // 카드 장수부터 다르면 무엇을 봤는지 자체가 어긋난 것이다.
+    const unreadable = new Set();
+    const countMismatch = options2.length > 0 && options2.length !== options.length;
+    for (let i = 0; i < options.length; i++) {
+      const a = options[i];
+      if (!a || a === "?" || isPlaceholder(a)) { unreadable.add(i); continue; }
+      if (countMismatch) { unreadable.add(i); continue; }
+      if (options2.length && similar(a, options2[i]) < SIMILAR_ENOUGH) unreadable.add(i);
+    }
+
+    const descs = (Array.isArray(seen?.descs) ? seen.descs : []).map((x) =>
+      String(x || "").trim().slice(0, 60)
+    );
+    // 예시를 베껴 왔으면 읽은 게 아니다
+    if (options.some(isPlaceholder)) {
+      pushRead({
+        at: new Date().toLocaleTimeString("ko-KR", { hour12: false }),
+        options,
+        why: "예시 문구를 그대로 답했습니다 — 카드를 못 읽은 것입니다",
+        imgW: crop.w, imgH: crop.h, tight: !!cardRect,
+      });
+      logger.push(
+        '<span class="bad">카드를 못 읽었습니다 (예시 문구를 그대로 답함) — 누르지 않고 기다립니다</span>'
+      );
+      return null;
+    }
+    const buttons = (Array.isArray(seen?.buttons) ? seen.buttons : [])
+      .map((x) => String(x || "").trim().slice(0, 20))
+      .filter(Boolean);
+
+    const si = indexOfOption(options, seen.selected);
+    if (si < 0) {
+      logger.push('<span class="bad">지금 뭐가 선택돼 있는지 못 읽었습니다 — 누르지 않고 기다립니다</span>');
+      return null;
+    }
+
+    // 지금 커서가 있는 카드를 못 읽었으면 몇 칸 움직일지도 믿을 수 없다.
+    if (unreadable.size) {
+      const bad = [...unreadable].map((i) => `${i + 1}번 "${options[i]}"`).join(", ");
+      pushRead({
+        at: new Date().toLocaleTimeString("ko-KR", { hour12: false }),
+        options,
+        options2,
+        descs,
+        buttons,
+        selected: options[si],
+        why: `두 번 읽은 결과가 달라 믿을 수 없습니다 (${bad})`,
+        imgW: crop.w, imgH: crop.h, tight: !!cardRect, test: !!testImage,
+      });
+      logger.push(
+        `<span class="bad">카드를 제대로 못 읽었습니다</span> ` +
+          `<span class="dim">1차 [${options.join(" / ")}] · 2차 [${options2.join(" / ")}] ` +
+          "— 지어낸 이름일 수 있어 누르지 않고 기다립니다</span>"
+      );
+      return null;
+    }
+
+    // --- 2단계: 무엇을 고를지 (그림 없이, 카드 중에서만) ---
+    el.vsLlmState.textContent = "고르는 중...";
+    const pickRes = await askBridge(
+      { type: "llm_ask", model, prompt: buildPickPrompt(options, descs), timeout: 40 },
+      45000
+    );
+    if (pickRes.error) {
+      logger.push(`<span class="bad">LLM 실패: ${pickRes.error} — 지정한 키로 갑니다</span>`);
+      return null;
+    }
+    const picked = parseJson(pickRes.text);
+    const ti = indexOfOption(options, picked?.target);
+    if (ti < 0) {
+      logger.push(
+        `<span class="bad">LLM이 말한 "${picked?.target}"를 카드 목록에서 못 찾았습니다 — 지정한 키로 갑니다</span>`
+      );
+      return null;
+    }
+
+    // --- 3단계: 방향키 개수는 코드가 센다 ---
+    // 모델에게 "몇 번째"를 시키면 이름은 맞히면서 번호를 틀린다. 그래서 여기서 뺀다.
+    // 카드는 세로로 쌓여 있다. 버튼을 목록에서 뺐으므로 방향이 섞일 일이 없다.
+    const steps = ti - si;
+    const move = steps > 0 ? "down" : "up";
+    const n = Math.min(Math.abs(steps), options.length);
+    const keys = [...Array(n).fill(move), "enter"].filter((k) => MENU_KEYS.includes(k));
+
+    const why = String(picked?.why || "").slice(0, 80);
+    pushRead({
+      at: new Date().toLocaleTimeString("ko-KR", { hour12: false }),
+      options,
+      options2,
+      descs,
+      buttons,
+      selected: options[si],
+      picked: options[ti],
+      keys,
+      why,
+      imgW: crop.w,
+      imgH: crop.h,
+      tight: !!cardRect,
+    });
+
+    return {
+      keys,
+      options,
+      item: options[ti],
+      from: options[si],
+      why,
+      sees: String(seen.sees || "").slice(0, 80),
+      took: (seenRes.took || 0) + (pickRes.took || 0),
+    };
+  }
+
+  let pendingMenu = null;
+  let menuStats = load("menuStats", {}); // 상태 -> { tried, worked }
+
+  function checkMenuOutcome(nowState) {
+    if (!pendingMenu) return;
+    const { state, keys, at } = pendingMenu;
+    const elapsed = performance.now() - at;
+
+    if (nowState !== state) {
+      bumpMenu(state, true);
+      if (el.vsLogOn.checked) {
+        logger.push(
+          `<span class="good">${STATES[state]}에서 ${keys.join(" → ")} 통함</span> → ${STATES[nowState] || nowState}`
+        );
+      }
+      pendingMenu = null;
+    } else if (elapsed > 4000) {
+      bumpMenu(state, false);
+      logger.push(
+        `<span class="bad">${STATES[state]}에서 ${keys.join(" → ")} 눌렀지만 화면이 그대로입니다</span>`
+      );
+      pendingMenu = null;
+    }
+  }
+
+  function bumpMenu(state, ok) {
+    const s = (menuStats[state] = menuStats[state] || { tried: 0, worked: 0 });
+    s.tried++;
+    if (ok) s.worked++;
+    save("menuStats", menuStats);
+    renderMenuStats();
+  }
+
+  function renderMenuStats() {
+    const rows = pausedStates()
+      .filter((k) => menuStats[k])
+      .map((k) => {
+        const s = menuStats[k];
+        const rate = ((s.worked / s.tried) * 100) | 0;
+        const cls = rate >= 70 ? "good" : rate >= 30 ? "dim" : "bad";
+        return `${STATES[k]} <span class="${cls}">${rate}%</span> (${s.worked}/${s.tried})`;
+      });
+    el.vsMenuStats.innerHTML = rows.length
+      ? "LLM이 누른 키로 화면이 넘어간 비율 — " + rows.join(" · ")
+      : "아직 멈춘 화면에서 키를 누른 기록이 없습니다";
+  }
+
+  // ---- 마킹 ----
+  let markMode = null;
+  let dragStart = null;
+  let dragNow = null;
+
+  function viewToNorm(e) {
+    const r = view.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)),
+      y: Math.max(0, Math.min(1, (e.clientY - r.top) / r.height)),
+    };
+  }
+
+  view.addEventListener("mousedown", (e) => {
+    if (!markMode) return;
+    if (markMode === "game" || markMode === "hp" || markMode === "xp") dragStart = viewToNorm(e);
+  });
+  view.addEventListener("mousemove", (e) => {
+    if (dragStart) dragNow = viewToNorm(e);
+  });
+  view.addEventListener("mouseup", (e) => {
+    if (!markMode) return;
+    const p = viewToNorm(e);
+    if (markMode === "game" || markMode === "hp" || markMode === "xp" || markMode === "cards") {
+      if (!dragStart) return;
+      const rect = {
+        x: Math.min(dragStart.x, p.x), y: Math.min(dragStart.y, p.y),
+        w: Math.abs(p.x - dragStart.x), h: Math.abs(p.y - dragStart.y),
+      };
+      dragStart = dragNow = null;
+      if (rect.w < 0.01 || rect.h < 0.005) return;
+      if (markMode === "game") {
+        gameRect = rect; save("game", rect);
+        logger.push('<span class="good">게임 영역을 지정했습니다</span>');
+      } else if (markMode === "cards") {
+        cardRect = rect; save("cards", rect);
+        logger.push('<span class="good">레벨업 카드 영역을 지정했습니다</span>');
+      } else if (markMode === "xp") {
+        xpRect = rect; save("xp", rect);
+        // 경험치는 색을 기억해두지 않는다. 레벨업 때 번쩍이면 그 색과 안 맞게 되기 때문에,
+        // 매 프레임 바 양끝에서 기준을 새로 뽑는다.
+        logger.push(
+          '<span class="good">경험치 바를 지정했습니다</span>' +
+            '<span class="dim"> — 색이 아니라 채워진 위치로 읽으므로 레벨업 때 번쩍여도 괜찮습니다. ' +
+            "이제 젬을 먹으면 그게 보상으로 들어갑니다</span>"
+        );
+      } else {
+        hpRect = rect; save("hp", rect);
+        hpColor = sampleColor(rect); save("hpColor", hpColor);
+        logger.push(`<span class="good">체력바를 지정했습니다 (기준색 rgb(${hpColor.join(",")}))</span>`);
+      }
+    }
+    setMarkMode(null);
+    renderMarks();
+  });
+
+  // 체력바의 왼쪽 끝 색을 기준색으로 삼는다 (바는 보통 오른쪽부터 줄어든다)
+  function sampleColor(rect) {
+    const img = wctx.getImageData(
+      Math.floor(rect.x * AW), Math.floor(rect.y * AH),
+      Math.max(2, Math.floor(rect.w * AW * 0.15)), Math.max(1, Math.floor(rect.h * AH))
+    );
+    let r = 0, g = 0, b = 0, n = 0;
+    for (let i = 0; i < img.data.length; i += 4) {
+      r += img.data[i]; g += img.data[i + 1]; b += img.data[i + 2]; n++;
+    }
+    return [Math.round(r / n), Math.round(g / n), Math.round(b / n)];
+  }
+
+  function setMarkMode(mode) {
+    markMode = mode;
+    document.querySelectorAll("[data-mark]").forEach((b) =>
+      b.classList.toggle("is-active", b.dataset.mark === mode)
+    );
+    view.style.cursor = mode ? "crosshair" : "default";
+    if (mode) {
+      setStatus(
+        mode === "game" ? "게임 화면 영역을 드래그하세요"
+          : mode === "cards" ? "레벨업 카드가 뜨는 영역을 드래그하세요"
+          : "체력바를 드래그하세요 (가득 찬 상태에서)",
+        "ok"
+      );
+    }
+  }
+
+  function renderMarks() {
+    const counts = Object.keys(STATES)
+      .map((k) => `${STATES[k]} 기억 ${(taught[k] || []).length}`)
+      .join(" · ");
+    el.vsMarks.textContent =
+      `게임영역 ${gameRect ? "지정됨" : "없음"} · 체력바 ${hpRect ? "지정됨" : "없음"} · 경험치바 ${xpRect ? "지정됨" : "없음"} · 카드영역 ${cardRect ? "지정됨" : "없음"} · ${counts}`;
+  }
+
+  // ---- 그리기 ----
+  function drawView(info) {
+    vctx.drawImage(work, 0, 0, view.width, view.height);
+    const sx = view.width / AW, sy = view.height / AH;
+
+    if (el.vsDebug.checked && info) {
+      const d = info.dots;
+      for (let i = 0; i < d.length; i += 3) {
+        vctx.fillStyle = d[i + 2] ? "rgba(90,220,255,0.85)" : "rgba(255,70,70,0.5)";
+        vctx.fillRect(d[i] * sx, d[i + 1] * sy, 2, 2);
+      }
+    }
+
+    const box = (r, color, label) => {
+      if (!r) return;
+      vctx.strokeStyle = color;
+      vctx.lineWidth = 2;
+      vctx.strokeRect(r.x * view.width, r.y * view.height, r.w * view.width, r.h * view.height);
+      if (label) {
+        vctx.fillStyle = color;
+        vctx.font = "14px NeoDunggeunmo, monospace";
+        vctx.fillText(label, r.x * view.width + 3, r.y * view.height - 4);
+      }
+    };
+    box(gameRect, "#7fd858", "게임");
+    box(cardRect, "#c39bff", "카드");
+    box(xpRect, "#8ef5a0", "경험치");
+    box(hpRect, "#ff7b6b", "체력");
+    if (dragStart && dragNow) {
+      box({
+        x: Math.min(dragStart.x, dragNow.x), y: Math.min(dragStart.y, dragNow.y),
+        w: Math.abs(dragNow.x - dragStart.x), h: Math.abs(dragNow.y - dragStart.y),
+      }, "#ffd479");
+    }
+
+
+    // 게임 영역 중앙 = 캐릭터 위치
+    const r = gameRect || { x: 0, y: 0, w: 1, h: 1 };
+    const cx = (r.x + r.w / 2) * view.width;
+    const cy = (r.y + r.h / 2) * view.height;
+    const reach = (Math.min(r.w * view.width, r.h * view.height) / 2) * 0.9;
+
+    // 방향마다 얼마나 달아날 수 있는지를 선 길이로 보여준다.
+    // 짧고 빨간 쪽이 막힌 방향, 길고 파란 쪽이 열린 방향이다.
+    if (info && info.field) {
+      for (let d = 0; d < 8; d++) {
+        const len = info.field.escape[d] * reach;
+        const t = info.field.escape[d];
+        vctx.strokeStyle = `rgba(${Math.round(255 * (1 - t))}, ${Math.round(200 * t + 40)}, 120, 0.75)`;
+        vctx.lineWidth = 3;
+        vctx.beginPath();
+        vctx.moveTo(cx, cy);
+        vctx.lineTo(cx + DIRS[d].ux * len, cy + DIRS[d].uy * len);
+        vctx.stroke();
+      }
+    }
+
+    vctx.strokeStyle = "#7fd858";
+    vctx.lineWidth = 2;
+    vctx.strokeRect(cx - 6, cy - 6, 12, 12);
+    if (lastAction !== null && running) {
+      const d = DIRS[lastAction];
+      vctx.strokeStyle = "#ffd479";
+      vctx.lineWidth = 4;
+      vctx.beginPath();
+      vctx.moveTo(cx, cy);
+      vctx.lineTo(cx + d.ux * reach, cy + d.uy * reach);
+      vctx.stroke();
+    }
+  }
+
+  // ---- 루프 ----
+  // rAF는 창이 가려지면 멈춘다. 게임 창을 클릭해야 하는 구조라 타이머를 쓴다.
+  let loopTimer = null;
+  let running = false;
+  let heldKeys = [];
+  let lastFrame = 0;
+  let lastDt = 0.066;
+  let fps = 0;
+  let lastThumb = null;
+
+  // 화면이 바뀌는 순간에는 한 프레임짜리 오판이 섞인다. 레벨업이 막 떴는데 아직
+  // "플레이 중"으로 읽히거나 그 반대인 찰나가 있고, 그때 키가 나가면 추론도 하기 전에
+  // 카드가 골라져 버린다. 같은 판정이 이만큼 이어져야 비로소 행동한다.
+  const SETTLE_MS = 450;
+  let stableState = null;
+  let stableSince = 0;
+
+  function startLoop() {
+    if (loopTimer) clearInterval(loopTimer);
+    loopTimer = setInterval(loop, 66);
+  }
+
+  function loop() {
+    if (!stream || video.readyState < 2) return;
+    const now = performance.now();
+    const dt = Math.max(0.001, (now - lastFrame) / 1000);
+    lastDt = Math.min(dt, 0.5); // 탭이 잠깐 멈췄다 돌아온 프레임이 한 번에 크게 먹지 않도록
+    lastFrame = now;
+    fps = fps * 0.8 + (1 / dt) * 0.2;
+
+    const info = analyze();
+    lastThumb = info.thumb;
+    // 게임이 멈췄나. 카메라가 안 움직이고 바깥 전장도 안 움직이면 멈춘 것.
+    // 카메라 이동을 아직 못 잰 프레임은 예전처럼 화면 전체 변화량으로 대신한다.
+    const stillNow =
+      info.outerMove !== null
+        ? info.outerMove < STILL_RATIO && info.shift.dx === 0 && info.shift.dy === 0
+        : info.motion < FREEZE_MOTION;
+    if (stillNow) { if (!stillSince) stillSince = now; } else stillSince = 0;
+    const worldFrozen = !!stillSince && now - stillSince >= FREEZE_HOLD;
+    lastWorldFrozen = worldFrozen;
+
+    const cls = classify(info.thumb, worldFrozen);
+
+    // 멈춘 화면인데 뭔지 모르고, 알아볼 수단(LLM 화면 판별)도 꺼져 있으면 알려준다
+    if (worldFrozen && cls.guessed && !el.vsIdOn.checked && !hintedIdOff) {
+      hintedIdOff = true;
+      logger.push(
+        '<span class="bad">게임이 멈췄는데 무슨 화면인지 모릅니다</span> ' +
+          '<span class="dim">— 가르쳐준 화면과 안 맞고, LLM 화면 판별도 꺼져 있어서 레벨업인지 알 수단이 없습니다. ' +
+          "LLM 메뉴에서 \"화면 종류도 LLM이 판별\" 을 켜거나, 화면 설정에서 레벨업을 가르쳐주세요.</span>"
+      );
+    }
+    lastMatch = cls.sample; // 이 화면에 붙은 메모만 프롬프트에 들어간다
+
+    if (cls.state !== stableState) {
+      stableState = cls.state;
+      stableSince = now;
+    }
+    const settled = now - stableSince >= SETTLE_MS;
+
+    // 가르쳐준 화면이 아닌데 멈춰 있으면 "메뉴" 라고 단정하지 않는다 — 레벨업일 수도 있다.
+    el.vsState.textContent =
+      (cls.guessed
+        ? cls.state === "play" ? "플레이 중 (추정)" : "멈춘 화면 (종류 모름)"
+        : STATES[cls.state] || cls.state) +
+      (settled ? "" : " · 확인 중");
+    el.vsState.className = cls.guessed || !settled ? "dim" : "";
+    el.vsFeat.textContent =
+      `게임 멈춤 ${worldFrozen ? "예" : "아니오"}` +
+      (info.outerMove !== null
+        ? ` (바깥 전장 움직임 ${(info.outerMove * 100).toFixed(2)}%, 카메라 ${info.shift.dx},${info.shift.dy})`
+        : ` (화면 변화 ${info.motion.toFixed(1)} — 카메라를 아직 못 잼)`) +
+      ` · 가장 비슷한 가르친 화면 ${cls.nearest ? STATES[cls.nearest] || cls.nearest : "없음"}` +
+      ` 차이 ${isFinite(cls.dist) ? cls.dist.toFixed(3) : "-"} (${MATCH_THRESHOLD} 미만이면 같은 화면) · ` +
+      `중앙빨강 ${info.red.toFixed(3)} (평소 ${info.redBase.toFixed(3)}, +${HURT_JUMP} 넘으면 피격) · ` +
+      `인식 흔들림 ${info.jitter.toFixed(3)}` +
+      (info.jitter > 0.08 ? " (큼 — 이펙트를 적으로 세는 중일 수 있습니다)" : "");
+    el.vsHp.textContent =
+      (info.hp === null ? "체력바 미지정" : `${(info.hp * 100).toFixed(0)}%`) +
+      (info.hurt ? " · 피격!" : "");
+    el.vsXp.textContent = info.xp === null ? "경험치바 미지정" : `${(info.xp * 100).toFixed(0)}%`;
+    el.vsHp.className = info.hurt ? "bad" : "";
+    checkMenuOutcome(cls.state);
+    maybeIdentify(cls, worldFrozen, now);
+
+    if (running) {
+      if (cls.state === "play") {
+        // 끝났다고 보류해둔 게 있으면, 플레이가 얼마 만에 돌아왔는지로 판단한다.
+        // 금방 돌아왔다면 부활이다 — 같은 판이므로 없던 일로 한다.
+        if (pendingEnd) {
+          if (now - pendingEnd < RESUME_WINDOW) cancelEnd("플레이가 다시 시작됨");
+          else commitEnd();
+        }
+        // 앞 판을 닫지 못한 채 새 판이 시작되는 경우가 있다 (결과 화면을 못 읽고 넘어간 경우).
+        // 그때라도 기록은 남겨야 한다.
+        if (!run.active) {
+          if (run.startedAt) endRun("다음 판 시작");
+          startRun();
+        }
+        const action = run.blind
+          ? (trackHitsOnly(info), blindAction(now))
+          : decide(info);
+        lastTaken = action;
+        lastTakenBlind = !!run.blind;
+        heldKeys = DIRS[action].keys;
+        sendKeys(heldKeys); // 매 틱 보내 워치독이 키를 떼지 않게 한다
+        el.vsDir.textContent = DIRS[action].name;
+        el.vsRunNow.textContent =
+          `${((performance.now() - run.startedAt) / 1000).toFixed(0)}초 · 피격 ${run.hits}`;
+        checkStuck("xp", info.xp, now);
+        checkStuck("hp", info.hp, now);
+      } else {
+        // 플레이가 아니면 잡고 있던 키부터 놓는다. 이건 확정을 기다리지 않는다 —
+        // 메뉴가 떴는데 계속 움직이고 있으면 곤란하다.
+        if (heldKeys.length) { heldKeys = []; sendKeys([]); }
+        // 부활 화면은 판이 이어진다는 뜻이다. 앞서 사망으로 읽었더라도 여기서 되돌린다.
+        if (cls.state === "revive") {
+          cancelEnd("부활 화면");
+        } else if (cls.state === "menu") {
+          // 시작 메뉴까지 갔으면 되돌릴 여지가 없다. 바로 확정한다.
+          markEnd("메뉴로 나감");
+          commitEnd();
+        } else if (cls.state === "dead") {
+          // 사망으로 보이지만 아직 확정하지 않는다 — 부활로 이어질 수 있다.
+          markEnd("사망");
+        }
+        // 보류한 채로 오래 멈춰 있으면 진짜 끝난 것이다.
+        if (pendingEnd && now - pendingEnd > RESUME_WINDOW) commitEnd();
+        // 누르는 건 화면이 확정된 뒤에만.
+        if (settled) handleMenu(cls.state);
+        el.vsDir.textContent = "-";
+        lastObs = null;
+        lastAction = null;
+        prevHp = null; // 판이 바뀌면 체력·경험치 비교를 끊는다
+        prevXp = null;
+      }
+    }
+
+    el.vsEnemies.textContent = info.enemyCount;
+    el.vsGems.textContent = info.gemCount;
+    el.vsFps.textContent = fps.toFixed(0);
+    el.vsEnemyThrVal.textContent = el.vsEnemyThr.value;
+    el.vsMoveThrVal.textContent = el.vsMoveThr.value;
+    el.vsGemThrVal.textContent = el.vsGemThr.value;
+    drawView(info);
+    if (sightVisible()) drawSight(info);
+  }
+
+  function setStatus(text, kind) {
+    el.vsStatus.textContent = text;
+    el.vsStatus.className = "vs-status" + (kind ? " " + kind : "");
+  }
+
+  async function start() {
+    if (!stream) return setStatus("먼저 화면 공유를 해주세요", "bad");
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      if (!(await connectBridge())) return setStatus("브릿지에 연결하지 못했습니다", "bad");
+    }
+    if (!gameRect) logger.push('<span class="dim">게임 영역이 지정되지 않아 화면 전체를 게임으로 봅니다</span>');
+    running = true;
+    setStatus("조작 중 — 게임 창을 클릭해서 활성화하세요", "ok");
+  }
+
+  function stop() {
+    running = false;
+    heldKeys = [];
+    sendStop();
+    el.vsDir.textContent = "-";
+    setStatus("정지됨", "");
+  }
+
+  el.vsShare.addEventListener("click", share);
+  el.vsDemo.addEventListener("click", useDemo);
+  el.vsRun.addEventListener("click", start);
+  el.vsStop.addEventListener("click", stop);
+  el.vsLogOn.addEventListener("change", () => logger.setEnabled(el.vsLogOn.checked));
+
+  // ---- 이 화면이 뭔지 직접 물어보기 ----
+  // 자동 판별은 "멈췄고 + 처음 보는 화면"일 때만 돈다. 보상 상자처럼 잠깐 스쳐가거나
+  // 사람이 먼저 확인하고 싶은 화면은 그 조건에 안 걸린다. 그래서 손으로 부를 수단을 둔다.
+  let askedState = null;
+  let askedThumb = null;
+
+  el.vsAskScreen.addEventListener("click", async () => {
+    if (!stream) {
+      el.vsAskResult.textContent = "먼저 화면 공유를 해주세요";
+      return;
+    }
+    if (!el.vsModel.value) {
+      el.vsAskResult.textContent = "먼저 모델을 고르세요 (모델 목록 버튼)";
+      return;
+    }
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      if (!(await connectBridge())) {
+        el.vsAskResult.textContent = "브릿지에 연결하지 못했습니다";
+        return;
+      }
+    }
+    el.vsAskScreen.disabled = true;
+    el.vsAskRemember.disabled = true;
+    el.vsAskResult.textContent = "묻는 중...";
+
+    // 지금 이 순간의 화면을 붙잡아 둔다. 답이 오는 사이 화면이 바뀌어도
+    // 기억시킬 때는 물어본 그 화면을 써야 한다.
+    const snap = lastThumb;
+    const r = await identifyScreen();
+    el.vsAskScreen.disabled = false;
+
+    if (r.error) {
+      askedState = null;
+      el.vsAskResult.textContent = `실패: ${r.error}`;
+      return;
+    }
+    askedState = r.state;
+    askedThumb = snap;
+    el.vsAskRemember.disabled = !snap;
+    el.vsAskResult.innerHTML =
+      `<b>${STATES[r.state]}</b> 라고 합니다 (${(r.took || 0).toFixed(1)}초) — ${r.why}` +
+      (snap ? "" : " <span class=\"bad\">(화면을 못 붙잡아 기억은 못 시킵니다)</span>");
+  });
+
+  // 사람이 적어준 말이 아는 화면 중 무엇인지 정한다. 그림은 주지 않는다 —
+  // 그림을 같이 주면 화면에 끌려가서 엉뚱하게 답하는 게 이미 확인됐다.
+  function buildTellPrompt(text) {
+    const list = Object.entries(STATES)
+      .map(([k, ko]) => `- ${k} (${ko})`)
+      .join("\n");
+    return `The player is telling you what a screen in the game Vampire Survivors is.
+They wrote this in Korean:
+
+"${text}"
+
+Screen kinds that are already known:
+${list}
+
+If they mean one of those, put its key in "known" and leave "key" and "label" empty.
+
+If they mean a kind that is NOT in that list, invent a new one instead:
+- "key"   : a short lowercase English identifier, letters and underscores only,
+            for example character_select or stage_select
+- "label" : a short Korean name for it, 2 to 6 characters, for example 캐릭터 선택
+Leave "known" empty in that case.
+
+Do not force it into an existing kind when it is really something else.
+
+${KOREAN_RULE}
+
+Answer with ONLY a JSON object, nothing else:
+{"known": "<existing key, or empty>", "key": "<new key, or empty>", "label": "<new Korean label, or empty>", "why": "<왜 그렇게 봤는지 한국어로 한 문장>"}`;
+  }
+
+  el.vsTellBtn.addEventListener("click", async () => {
+    const text = (el.vsTellText.value || "").trim();
+    if (!text) {
+      el.vsHints.textContent = "무엇인지 적어주세요";
+      return;
+    }
+    const snap = lastThumb; // 메모는 지금 이 화면에 붙는다
+    if (!snap) {
+      el.vsHints.innerHTML =
+        '<span class="bad">지금 보이는 화면이 없습니다 — 화면 공유를 먼저 해주세요.</span>' +
+        '<br /><span class="dim">메모는 화면 사진에 붙는 것이라, 붙일 화면이 있어야 합니다.</span>';
+      return;
+    }
+    if (!el.vsModel.value || !ws || ws.readyState !== WebSocket.OPEN) {
+      el.vsHints.innerHTML =
+        '<span class="bad">모델과 브릿지가 필요합니다 (모델 목록 버튼)</span>';
+      return;
+    }
+    el.vsTellText.value = "";
+    el.vsTellBtn.disabled = true;
+    el.vsHints.innerHTML += '<br /><span class="dim">어떤 화면인지 맞춰보는 중...</span>';
+
+    const res = await askBridge(
+      { type: "llm_ask", model: el.vsModel.value, prompt: buildTellPrompt(text), timeout: 40 },
+      45000
+    );
+    el.vsTellBtn.disabled = false;
+    renderHints();
+
+    const o = res.error ? null : parseJson(res.text);
+    let st = String(o?.known || "").trim().toLowerCase();
+    let made = false;
+
+    // 아는 종류가 아니면 새로 만든다. 예전에는 억지로 여섯 개 중 하나에 밀어넣었는데,
+    // 그러면 "카드 선택 화면"처럼 목록에 없는 화면을 영영 말해줄 수 없었다.
+    if (!STATES[st]) {
+      const k = addState(o?.key, o?.label);
+      if (k) {
+        st = k;
+        made = true;
+      }
+    }
+    if (!STATES[st]) {
+      // 새 종류도 못 만들었으면 지금 화면으로 읽히던 종류에 붙인다.
+      st = stableState && STATES[stableState] ? stableState : "menu";
+      const why = res.error || "무슨 화면인지 정하지 못했습니다";
+      teach(st, snap, text);
+      renderHints();
+      el.vsHints.innerHTML =
+        `<span class="dim">${why} — 지금 화면("${STATES[st]}")에 메모만 붙였습니다.</span>`;
+      return;
+    }
+
+    teach(st, snap, text);
+    renderHints();
+    if (made) {
+      el.vsHints.innerHTML =
+        `<span class="good">"${STATES[st]}" 라는 화면 종류를 새로 만들었습니다</span>` +
+        `<span class="dim"> — 가르치기 버튼과 키 지정 목록에도 올라갔습니다. ${o?.why || ""}</span>`;
+    }
+    logger.push(
+      `<span class="tag">알려줌</span> <span class="pick">${STATES[st]}${made ? " (새 종류)" : ""}</span> ` +
+        `<span class="dim">${text}</span>`
+    );
+  });
+
+  el.vsAskRemember.addEventListener("click", () => {
+    if (!askedState || !askedThumb) return;
+    teach(askedState, askedThumb);
+    el.vsAskRemember.disabled = true;
+    el.vsAskResult.innerHTML += ` <b class="good">→ 기억했습니다</b>`;
+  });
+
+  // 화면 종류는 늘어날 수 있으므로 버튼도 그때그때 다시 만든다.
+  function renderTeachButtons() {
+    el.vsTeachBtns.innerHTML = Object.entries(STATES)
+      .map(([k, ko]) => {
+        const mine = !BUILTIN_STATES.includes(k);
+        return `<button data-teach="${k}"${mine ? ' class="is-mine"' : ""}>${ko}${mine ? " ✎" : ""}</button>`;
+      })
+      .join("");
+  }
+  // 버튼이 다시 만들어져도 동작하도록 컨테이너에서 한 번만 받는다
+  el.vsTeachBtns.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-teach]");
+    if (b) teach(b.dataset.teach);
+  });
+  document.querySelectorAll("[data-mark]").forEach((b) =>
+    b.addEventListener("click", () => setMarkMode(markMode === b.dataset.mark ? null : b.dataset.mark))
+  );
+  document.getElementById("vsForget").addEventListener("click", () => {
+    taught = {};
+    // 만들어둔 화면 종류도 같이 지운다. 기억이 없으면 그 종류만 남아봐야 쓸모가 없다.
+    for (const k of Object.keys(customStates)) delete STATES[k];
+    customStates = {};
+    gameRect = null; hpRect = null; hpColor = null; cardRect = null;
+    xpRect = null;
+    // 키 지정이 바뀌면 그 성공률 기록도 의미가 없어지므로 같이 지운다
+    menuStats = {};
+    ["taught", "plan", "game", "hp", "hpColor", "xp", "menuStats", "cards", "customStates"].forEach((k) =>
+      localStorage.removeItem(STORE + "." + k)
+    );
+    renderMenuStats();
+    renderMarks();
+    renderTeachButtons();
+      renderHints();
+    logger.push('<span class="dim">지정한 영역과 기억을 모두 지웠습니다</span>');
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (!running) return;
+    if (document.hidden) {
+      setStatus("브라우저 창이 가려져 봇이 멈췄습니다 — 창을 나란히 두세요", "bad");
+    } else {
+      setStatus("조작 중", "ok");
+    }
+  });
+
+  document.querySelectorAll(".tab").forEach((tab) =>
+    tab.addEventListener("click", () => {
+      if (tab.dataset.tab !== "vamp" && running) stop();
+    })
+  );
+  window.addEventListener("beforeunload", sendStop);
+
+  el.vsAlpha.addEventListener("input", () => {
+    el.vsAlphaVal.textContent = `${el.vsAlpha.value}%`;
+  });
+
+  document.getElementById("vsLoadModels").addEventListener("click", async () => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      if (!(await connectBridge())) {
+        logger.push('<span class="bad">브릿지에 먼저 연결해야 합니다</span>');
+        return;
+      }
+    }
+    const res = await askBridge({ type: "llm_models" }, 8000);
+    if (res.error || !res.models) {
+      logger.push(`<span class="bad">모델 목록을 못 받았습니다: ${res.error || "응답 없음"}</span>`);
+      return;
+    }
+    if (!res.models.length) {
+      logger.push('<span class="bad">Ollama에 설치된 모델이 없습니다</span>');
+      return;
+    }
+    // 실측 비교 결과 기본값. gemma3:12b는 카드를 정확히 읽고 warm 5.6초.
+    // qwen3-vl은 thinking 모델이라 답을 못 내고, llama3.2-vision은 Ollama가 아키텍처를 지원하지 않는다.
+    const saved = load("model", "gemma3:12b");
+    el.vsModel.innerHTML = res.models.map((m) => `<option${m === saved ? " selected" : ""}>${m}</option>`).join("");
+    logger.push(`<span class="good">모델 ${res.models.length}개 — ${res.models.join(", ")}</span>`);
+  });
+
+  el.vsModel.addEventListener("change", () => {
+    save("model", el.vsModel.value);
+    if (el.vsIdOn.checked || el.vsLlmOn.checked) warmModel();
+  });
+
+  el.vsWindow.value = load("window", "");
+
+  el.vsEnemyMode.value = load("enemyMode", "motion");
+  el.vsEnemyMode.addEventListener("change", () => save("enemyMode", el.vsEnemyMode.value));
+  el.vsMoveThr.value = load("moveThr", 22);
+  el.vsMoveThr.addEventListener("change", () => save("moveThr", Number(el.vsMoveThr.value)));
+
+  el.vsBlindMode.value = load("blindMode", "off");
+  el.vsBlindMode.addEventListener("change", () => {
+    save("blindMode", el.vsBlindMode.value);
+    logger.push(`<span class="tag">블라인드</span> ${el.vsBlindMode.selectedOptions[0].textContent} — 다음 판부터 적용됩니다`);
+  });
+  el.vsProbeBtn.addEventListener("click", runProbe);
+  el.vsDemoPause.addEventListener("click", () => {
+    demoPaused = !demoPaused;
+    el.vsDemoPause.textContent = demoPaused ? "테스트 영상 다시 움직이기" : "테스트 영상 멈추기 (레벨업처럼)";
+  });
+
+  el.vsGoal.value = load("goal", "");
+  el.vsGoal.addEventListener("change", () => {
+    save("goal", el.vsGoal.value);
+    el.vsGoalState.textContent = el.vsGoal.value.trim() ? "목표 있음" : "목표 없음";
+  });
+  el.vsGoalRepeat.checked = load("goalRepeat", false);
+  el.vsGoalRepeat.addEventListener("change", () => save("goalRepeat", el.vsGoalRepeat.checked));
+  el.vsGoalState.textContent = el.vsGoal.value.trim() ? "목표 있음" : "목표 없음";
+
+  el.vsIdOn.checked = load("idOn", false);
+  el.vsIdOn.addEventListener("change", () => {
+    save("idOn", el.vsIdOn.checked);
+    if (el.vsIdOn.checked) warmModel();
+  });
+  el.vsLlmOn.addEventListener("change", () => {
+    if (el.vsLlmOn.checked) warmModel();
+  });
+
+  // 설정을 바꾸면 그 전 판 기록과는 비교가 안 되므로 따로 지울 수 있게 둔다
+  document.getElementById("vsClearRuns").addEventListener("click", () => {
+    history = [];
+    save("runs", history);
+    readLog = [];
+    save("readLog", readLog);
+    renderReadLog();
+    renderRuns();
+    logger.push('<span class="dim">판 기록을 지웠습니다</span>');
+  });
+
+  el.vsRun.disabled = true;
+  setStatus("화면 공유를 먼저 시작하세요", "");
+  renderMarks();
+  renderHints();
+  renderReadLog();
+  renderBlindStats();
+  renderTeachButtons();
+  renderRuns();
+  renderMenuStats();
+  el.vsAlphaVal.textContent = `${el.vsAlpha.value}%`;
+})();

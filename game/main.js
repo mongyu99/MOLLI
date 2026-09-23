@@ -18,6 +18,10 @@ const bctx = boardCanvas.getContext("2d");
 const chartCanvas = document.getElementById("chart");
 const cctx = chartCanvas.getContext("2d");
 
+const logger = createLogger("scentLog");
+const ACTION_NAMES = ["제자리", "위", "아래", "왼쪽", "오른쪽"];
+let hoverIndex = null;
+
 const el = {
   episode: document.getElementById("stEpisode"),
   step: document.getElementById("stStep"),
@@ -30,6 +34,8 @@ const el = {
   btnReset: document.getElementById("btnReset"),
   speed: document.getElementById("speed"),
   randomGem: document.getElementById("randomGem"),
+  logOn: document.getElementById("scentLogOn"),
+  readout: document.getElementById("chartReadout"),
 };
 
 function cellSize() {
@@ -211,43 +217,34 @@ function drawBurst(gx, gy, cs) {
   }
 }
 
-function drawChart() {
-  cctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
-  if (history.length < 2) return;
-  const recent = history.slice(-200);
+const CHART_WINDOW = 200;
+
+function chartSlice() {
+  const recent = history.slice(-CHART_WINDOW);
+  const xStart = history.length - recent.length + 1; // 1부터 세는 에피소드 번호
   const rewards = recent.map((h) => h.reward);
-  const min = Math.min(...rewards, 0);
-  const max = Math.max(...rewards, 1);
-  const range = max - min || 1;
-  const w = chartCanvas.width;
-  const h = chartCanvas.height;
-
-  cctx.strokeStyle = "#4fd8e0";
-  cctx.lineWidth = 1.5;
-  cctx.beginPath();
-  rewards.forEach((r, i) => {
-    const x = (i / (rewards.length - 1)) * w;
-    const y = h - ((r - min) / range) * (h - 10) - 5;
-    if (i === 0) cctx.moveTo(x, y);
-    else cctx.lineTo(x, y);
+  const avg = rewards.map((_, i) => {
+    const s = rewards.slice(Math.max(0, i - 19), i + 1);
+    return s.reduce((a, b) => a + b, 0) / s.length;
   });
-  cctx.stroke();
+  return { rewards, avg, xStart };
+}
 
-  // 이동평균 (최근 20개)
-  cctx.strokeStyle = "#ffb040";
-  cctx.lineWidth = 2;
-  cctx.beginPath();
-  const window = 20;
-  rewards.forEach((_, i) => {
-    const start = Math.max(0, i - window + 1);
-    const slice = rewards.slice(start, i + 1);
-    const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
-    const x = (i / (rewards.length - 1)) * w;
-    const y = h - ((avg - min) / range) * (h - 10) - 5;
-    if (i === 0) cctx.moveTo(x, y);
-    else cctx.lineTo(x, y);
+function drawChart() {
+  ChartUtil.fit(chartCanvas, 220);
+  if (history.length < 2) {
+    cctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
+    return;
+  }
+  const { rewards, avg, xStart } = chartSlice();
+  ChartUtil.draw(chartCanvas, {
+    xStart,
+    hoverIndex,
+    series: [
+      { values: rewards, color: "#4fd8e0", width: 1.5 },
+      { values: avg, color: "#ffb040", width: 2 },
+    ],
   });
-  cctx.stroke();
 }
 
 function updateStats() {
@@ -264,10 +261,28 @@ function updateStats() {
   }
 }
 
+function logStep(o, action, q, explored, reward, found) {
+  if (!el.logOn.checked) return;
+  const scents = `향기 ↑${o[1].toFixed(2)} ↓${o[2].toFixed(2)} ←${o[3].toFixed(2)} →${o[4].toFixed(2)}`;
+  const why = explored
+    ? `<span class="dim">무작위 탐험 ε${epsilon.toFixed(2)}</span>`
+    : `Q ${fmtNum(q[action])} <span class="dim">(최대)</span>`;
+  const outcome = found
+    ? `<span class="good">다이아몬드 발견 ${fmtNum(reward)}</span>`
+    : `보상 ${fmtNum(reward)}`;
+  logger.push(
+    `<span class="tag">E${episode + 1}·S${env.steps}</span> ` +
+      `<span class="pick">${ACTION_NAMES[action]}</span> · ${scents} · ${why} · ${outcome} · DA ${fmtNum(lastDopamine)}`,
+    found ? "win" : null
+  );
+}
+
 function tick() {
-  const { action, activeKC } = brain.act(obs, epsilon);
+  const prevObs = obs;
+  const { action, activeKC, q, explored } = brain.act(obs, epsilon);
   const { obs: nextObs, reward, done, found } = env.step(action);
   lastDopamine = brain.learn(activeKC, action, reward, nextObs, done);
+  logStep(prevObs, action, q, explored, reward, found);
   obs = nextObs;
   episodeReward += reward;
 
@@ -320,5 +335,34 @@ el.speed.addEventListener("input", () => {
   if (running) startLoop();
 });
 
+el.logOn.addEventListener("change", () => logger.setEnabled(el.logOn.checked));
+
+const READOUT_HINT = "그래프에 마우스를 올리면 해당 에피소드 값이 표시됩니다";
+
+chartCanvas.addEventListener("mousemove", (e) => {
+  if (history.length < 2) return;
+  const { rewards, avg, xStart } = chartSlice();
+  const i = ChartUtil.indexFromEvent(chartCanvas, e, rewards.length);
+  hoverIndex = i;
+  if (i === null) {
+    el.readout.textContent = READOUT_HINT;
+  } else {
+    const h = history[history.length - rewards.length + i];
+    el.readout.textContent =
+      `${xStart + i}번째 에피소드 · 보상 ${rewards[i].toFixed(2)} · 20개 이동평균 ${avg[i].toFixed(2)} · ` +
+      `${h.steps}스텝 · ${h.found ? "성공" : "실패"}`;
+  }
+  drawChart();
+});
+
+chartCanvas.addEventListener("mouseleave", () => {
+  hoverIndex = null;
+  el.readout.textContent = READOUT_HINT;
+  drawChart();
+});
+
+window.addEventListener("resize", drawChart);
+
 drawBoard();
 updateStats();
+drawChart();
