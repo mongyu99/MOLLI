@@ -416,6 +416,39 @@ canvas#vsSight {
 .vs-table td:first-child, .vs-table th:first-child { text-align: left; }
 .vs-table tr.picked td { color: #ffd479; background: rgba(255,212,121,0.08); }
 
+/* 모니터링: 시야(왼쪽 크게) + 로그 · 레벨업 읽은 것(오른쪽 위아래)을 한 화면에 */
+.vs-main.is-monitor {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  /* 오른쪽 위(로그)는 제 높이만, 남는 높이는 아래(읽은 것)가 가져간다 — 둘 사이가 벌어지지 않게 */
+  grid-template-rows: auto 1fr;
+  gap: 14px 18px;
+  align-items: start;
+}
+.vs-main.is-monitor > .vs-sec[data-sec="see"] { grid-column: 1; grid-row: 1 / span 2; }
+.vs-main.is-monitor > .vs-sec[data-sec="log"] { grid-column: 2; grid-row: 1; }
+.vs-main.is-monitor > .vs-sec[data-sec="read"] { grid-column: 2; grid-row: 2; }
+.vs-main.is-monitor .vs-note { display: none; }
+.vs-main.is-monitor .log-tall { height: 300px; margin-bottom: 0; }
+.vs-main.is-monitor .vs-scroll { max-height: 240px; }
+/* 좁은 창에서는 세로로 쌓는다 */
+@media (max-width: 1250px) {
+  .vs-main.is-monitor { grid-template-columns: minmax(0, 1fr); }
+  .vs-main.is-monitor > .vs-sec[data-sec="see"],
+  .vs-main.is-monitor > .vs-sec[data-sec="log"],
+  .vs-main.is-monitor > .vs-sec[data-sec="read"] { grid-column: 1; grid-row: auto; }
+}
+
+.vs-region-form {
+  margin-top: 10px;
+  padding: 10px;
+  background: var(--slot);
+  border: 2px solid #ffb35c;
+}
+.vs-region-form[hidden] { display: none; }
+.vs-region-row { padding: 3px 0; }
+button.vs-mini { padding: 2px 8px; font-size: 14px; margin-left: 6px; }
+
 /* 고른 메뉴의 내용만 보인다 */
 .vs-sec { display: none; }
 .vs-sec.is-active { display: block; }
@@ -543,4 +576,14 @@ footer code {
   background: var(--slot);
   padding: 2px 6px;
   border: 1px solid #000;
+}
+
+/* 기억한 창 색 견본 */
+.swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  vertical-align: middle;
+  margin-right: 4px;
 }

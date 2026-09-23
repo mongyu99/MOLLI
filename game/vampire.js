@@ -124,7 +124,9 @@
     "vsGoalRepeat", "vsGoalState", "vsRunResult", "vsTeachBtns", "vsReadLog",
     "vsTestImg", "vsTestPaste", "vsTestState",
     "vsBlindMode", "vsBlindStats", "vsProbeBtn", "vsProbeResult",
-    "vsSight", "vsSightTable", "vsSightWhy", "vsEnemyMode", "vsMoveThr", "vsMoveThrVal", "vsDemoPause",
+    "vsSight", "vsSightTable", "vsSightWhy", "vsEnemyMode", "vsMoveThr", "vsMoveThrVal", "vsDemoPause", "vsNavKeys",
+    "vsRegionForm", "vsRegionLabel", "vsRegionScope", "vsRegionAsk", "vsRegionSave",
+    "vsRegionCancel", "vsRegionState", "vsRegionList", "vsUiBlue", "vsUiThr", "vsUiThrVal", "vsUiColor", "vsUiLearn", "vsUiForget",
   ].forEach((id) => (el[id] = document.getElementById(id)));
 
   const logger = createLogger("vsLog", { max: 60 });
@@ -148,13 +150,26 @@
   placeMolli();
 
   // 왼쪽 메뉴: 고른 것만 보여준다
+  // "모니터링" 은 시야·로그·레벨업 읽은 것을 한 화면에 같이 보여준다.
+  // 나머지 메뉴는 고른 것 하나만 보여준다.
+  const MONITOR_SECS = ["see", "log", "read"];
+
+  function showSection(sec) {
+    const monitor = sec === "monitor";
+    document.querySelectorAll(".vs-menu-btn").forEach((x) =>
+      x.classList.toggle("is-active", x.dataset.sec === sec)
+    );
+    document.querySelector(".vs-main")?.classList.toggle("is-monitor", monitor);
+    document.querySelectorAll(".vs-sec").forEach((el2) =>
+      el2.classList.toggle(
+        "is-active",
+        monitor ? MONITOR_SECS.includes(el2.dataset.sec) : el2.dataset.sec === sec
+      )
+    );
+    try { localStorage.setItem(STORE + ".menu", JSON.stringify(sec)); } catch (e) {}
+  }
   document.querySelectorAll(".vs-menu-btn").forEach((b) =>
-    b.addEventListener("click", () => {
-      document.querySelectorAll(".vs-menu-btn").forEach((x) => x.classList.toggle("is-active", x === b));
-      document.querySelectorAll(".vs-sec").forEach((sec) =>
-        sec.classList.toggle("is-active", sec.dataset.sec === b.dataset.sec)
-      );
-    })
+    b.addEventListener("click", () => showSection(b.dataset.sec))
   );
 
   // 로그 줄마다 "몇 번째 판의 몇 분 몇 초"를 앞에 붙인다.
@@ -192,7 +207,7 @@
   let hpRect = load("hp", null);
   let xpRect = load("xp", null);
   let hpColor = load("hpColor", null);
-  let cardRect = load("cards", null); // 레벨업 카드가 뜨는 영역
+  let cardRect = load("cards", null); // 레벨업 창이 뜨는 영역 (카드 + 새로고침·건너뛰기·삭제)
   // 상태 -> [{ t: 썸네일, note: 그 화면에 대한 사용자 메모 }]
   // 예전에는 썸네일 배열만 저장했다. 그때 저장해둔 것도 그대로 읽히게 한 번 변환한다.
   // 사용자가 만든 화면 종류를 기본 목록에 합친다
@@ -290,18 +305,185 @@
   let stillSince = 0;
   let hintedIdOff = false;
 
-  function outerMotion(resid, moveThr, aspect) {
+  // 레벨업 영역을 지정했으면 그 사각형을(조금 넉넉하게) 빼고, 아니면 가운데 원을 뺀다.
+  // g: 게임 영역 (분석 캔버스 픽셀). 움직임 버퍼는 게임 영역을 MW x MH 로 줄인 것이다.
+  function outerMotion(resid, moveThr, aspect, g) {
+    let skip = null;
+    if (cardRect && g) {
+      const pad = 0.04;
+      const toX = (v) => ((v * AW - g.gx) / g.gw) * MW;
+      const toY = (v) => ((v * AH - g.gy) / g.gh) * MH;
+      skip = {
+        x0: toX(cardRect.x - pad), x1: toX(cardRect.x + cardRect.w + pad),
+        y0: toY(cardRect.y - pad), y1: toY(cardRect.y + cardRect.h + pad),
+      };
+    }
     let m = 0, n = 0;
     for (let y = Math.ceil(MH * 0.1); y < MH; y += 2) { // 맨 위 HUD 는 뺀다
       const ny = (y - MH / 2) / (MH / 2);
       for (let x = 0; x < MW; x += 2) {
-        const nx = ((x - MW / 2) / (MW / 2)) * aspect;
-        if (Math.hypot(nx, ny) < CENTER_SKIP) continue;
+        if (skip) {
+          if (x >= skip.x0 && x <= skip.x1 && y >= skip.y0 && y <= skip.y1) continue;
+        } else {
+          const nx = ((x - MW / 2) / (MW / 2)) * aspect;
+          if (Math.hypot(nx, ny) < CENTER_SKIP) continue;
+        }
         n++;
         if (resid[y * MW + x] > moveThr) m++;
       }
     }
     return n ? m / n : 0;
+  }
+
+  // ---- 파란 창: 게임이 아닌 화면 ----
+  // 움직임만으로 멈춤을 보면, 판이 막 시작해 아무것도 안 움직일 때 플레이를 못 알아본다.
+  // 몰리가 키를 안 누르니 카메라도 안 움직이고, 그러니 계속 "멈춘 화면" 으로 남는다.
+  // 뱀서의 창(레벨업·메뉴·캐릭터 선택·결과)은 넓은 파란 판이다. 전장에도 파란 젬이 있지만
+  // 점처럼 작아서 8x8 칸을 절반 넘게 채우지 못한다. 칸을 채울 만큼 넓게 파란 곳이
+  // 일정 비율을 넘으면 창이 뜬 것 — 게임이 아니다.
+  const UI_CELL = 8;         // 분석 캔버스 픽셀 (원본 1920 폭이면 약 32픽셀)
+  const UI_FILL = 0.5;       // 칸 안의 파란 점이 이 비율을 넘으면 파란 칸
+  const UI_HOLD = 200;       // 파란 창이 이만큼 이어져야 창으로 본다 (한 프레임 번쩍임 무시)
+  const LONG_FREEZE = 3000;  // 파란 창 없이 멈춘 화면(상자·게임 오버 등)은 이만큼 멈춰 있어야 인정
+  let blueSince = 0;
+  let uiShown = false;
+  let lastCamMoveAt = 0;
+  const CAM_STILL_MS = 400; // 카메라가 이만큼 멈춰 있어야 창일 수 있다
+
+  // 어디를 볼지: 레벨업 영역을 지정했으면 거기, 아니면 게임 영역 가운데.
+  // 맨 위 경험치 바도 파랗기 때문에 가장자리는 뺀다.
+  function uiCheckRect() {
+    if (cardRect) return cardRect;
+    const r = gameRect || { x: 0, y: 0, w: 1, h: 1 };
+    return { x: r.x + r.w * 0.2, y: r.y + r.h * 0.15, w: r.w * 0.6, h: r.h * 0.75 };
+  }
+
+  const isUiBlue = (r, g, b) => b >= 50 && b - Math.max(r, g) >= 25;
+  const isUiRed = (r, g, b) => r >= 100 && r - Math.max(g, b) >= 50;
+
+  // 파란 바닥이 있는 맵에서는 바닥도 파랗다. 그래서 세 가지를 더 본다.
+  //  1) 평평한가 — 창은 한 색으로 칠한 판이고, 바닥은 무늬가 있다.
+  //  2) 창 색을 기억했는가 — 레벨업 창을 한 번 제대로 읽으면 그 창의 색을 기억하고,
+  //     그다음부터는 그 색에 가까운 것만 창으로 본다. 다른 파랑은 세지 않는다.
+  //  3) 카메라가 멈췄는가 — 창이 떠 있으면 게임이 멈춰 카메라도 안 움직인다 (판단하는 쪽에서 본다).
+  let uiColor = load("uiColor", null); // [r, g, b] — 기억한 창 색
+  let learnColorAsk = null;            // "auto" | "manual" — 다음 프레임에서 창 색을 배운다
+  const UI_TOL = 48;    // 기억한 창 색과 세 채널 차이 합이 이 미만이면 같은 색
+  const UI_FLAT = 8;    // 칸 안 파란 점들이 평균에서 채널당 이만큼 이내로 모여 있어야 평평한 판
+
+  const colorGap = (r, g, b, c) => Math.abs(r - c[0]) + Math.abs(g - c[1]) + Math.abs(b - c[2]);
+  // 후보는 넓게 잡는다. 기억한 색에 딱 맞는 점만 고르면 무늬 있는 바닥의 어두운 쪽만 남아서
+  // 그것끼리는 평평해 보인다. 넓게 모아 평평한지 본 다음, 평균이 창 색인지 따로 본다.
+  const isPanelColor = (r, g, b) => (uiColor ? colorGap(r, g, b, uiColor) < UI_TOL * 2.5 : isUiBlue(r, g, b));
+
+  // blue : 평평한 창 색 칸의 비율 (이걸로 판단한다)
+  // rough: 파랗지만 창이 아니라고 본 칸의 비율 (무늬가 있거나, 기억한 창 색과 다른 파랑)
+  // red  : 빨간 점의 비율 (참고용 — 플레이 중에도 체력바가 빨갛다)
+  function uiColors(px) {
+    const rc = uiCheckRect();
+    const x0 = Math.max(0, Math.round(rc.x * AW)), x1 = Math.min(AW, Math.round((rc.x + rc.w) * AW));
+    const y0 = Math.max(0, Math.round(rc.y * AH)), y1 = Math.min(AH, Math.round((rc.y + rc.h) * AH));
+    let cells = 0, flat = 0, rough = 0, red = 0, n = 0;
+    const hit = [];
+    for (let cy = y0; cy + UI_CELL <= y1; cy += UI_CELL) {
+      for (let cx = x0; cx + UI_CELL <= x1; cx += UI_CELL) {
+        let m = 0, sr = 0, sg = 0, sb = 0;
+        hit.length = 0;
+        for (let y = cy; y < cy + UI_CELL; y += 2) {
+          for (let x = cx; x < cx + UI_CELL; x += 2) {
+            const i = (y * AW + x) * 4;
+            if (isPanelColor(px[i], px[i + 1], px[i + 2])) {
+              hit.push(i);
+              sr += px[i]; sg += px[i + 1]; sb += px[i + 2];
+            }
+            if (isUiRed(px[i], px[i + 1], px[i + 2])) red++;
+            m++;
+          }
+        }
+        cells++;
+        n += m;
+        const b = hit.length;
+        if (b / m < UI_FILL) continue;
+        const mr = sr / b, mg = sg / b, mb = sb / b;
+        let dev = 0;
+        for (const i of hit) dev += Math.abs(px[i] - mr) + Math.abs(px[i + 1] - mg) + Math.abs(px[i + 2] - mb);
+        if (dev / (b * 3) > UI_FLAT) rough++;                              // 무늬 — 바닥
+        else if (uiColor && colorGap(mr, mg, mb, uiColor) >= UI_TOL) rough++; // 평평하지만 다른 파랑
+        else flat++;
+      }
+    }
+    return { blue: cells ? flat / cells : 0, rough: cells ? rough / cells : 0, red: n ? red / n : 0 };
+  }
+
+  function learnNow(px) {
+    const how = learnColorAsk;
+    learnColorAsk = null;
+    const c = learnPanelColor(px);
+    if (!c) {
+      if (how === "manual") {
+        logger.push(
+          '<span class="bad">창 색을 못 찾았습니다</span> <span class="dim">— 확인 영역(파란 점선, 또는 레벨업 영역)에 ' +
+            "한 색으로 칠한 창이 넓게 보일 때 다시 눌러주세요.</span>"
+        );
+      }
+      return null;
+    }
+    uiColor = c;
+    save("uiColor", uiColor);
+    renderUiColor();
+    logger.push(
+      `<span class="tag">창 색 기억</span> rgb(${c.join(", ")}) ` +
+        `<span class="dim">— ${how === "auto" ? "레벨업 창을 읽은 김에 배웠습니다. " : ""}` +
+        "이제 이 색에 가까운 평평한 판만 창으로 봅니다. 파란 바닥은 세지 않습니다.</span>"
+    );
+    return c;
+  }
+
+  function renderUiColor() {
+    if (!el.vsUiColor) return;
+    el.vsUiColor.innerHTML = uiColor
+      ? `<span class="swatch" style="background:rgb(${uiColor.join(",")})"></span> rgb(${uiColor.join(", ")}) — 이 색에 가까운 것만 창으로 봄`
+      : "아직 없음 — 파란 계열이면 다 창 후보로 봄 (레벨업 창을 한 번 읽으면 자동으로 배웁니다)";
+  }
+
+  // 창 색 배우기: 확인 영역에서 평평한 칸들의 색을 모아 가장 많은 색을 고른다.
+  // 파랑인지 따지지 않는다 — 창 색이 생각보다 보라에 가깝거나 어두워도 배울 수 있게.
+  function learnPanelColor(px) {
+    const rc = uiCheckRect();
+    const x0 = Math.max(0, Math.round(rc.x * AW)), x1 = Math.min(AW, Math.round((rc.x + rc.w) * AW));
+    const y0 = Math.max(0, Math.round(rc.y * AH)), y1 = Math.min(AH, Math.round((rc.y + rc.h) * AH));
+    const bins = new Map();
+    let cells = 0;
+    for (let cy = y0; cy + UI_CELL <= y1; cy += UI_CELL) {
+      for (let cx = x0; cx + UI_CELL <= x1; cx += UI_CELL) {
+        cells++;
+        let m = 0, sr = 0, sg = 0, sb = 0;
+        for (let y = cy; y < cy + UI_CELL; y += 2) {
+          for (let x = cx; x < cx + UI_CELL; x += 2) {
+            const i = (y * AW + x) * 4;
+            sr += px[i]; sg += px[i + 1]; sb += px[i + 2]; m++;
+          }
+        }
+        const mr = sr / m, mg = sg / m, mb = sb / m;
+        let dev = 0;
+        for (let y = cy; y < cy + UI_CELL; y += 2) {
+          for (let x = cx; x < cx + UI_CELL; x += 2) {
+            const i = (y * AW + x) * 4;
+            dev += Math.abs(px[i] - mr) + Math.abs(px[i + 1] - mg) + Math.abs(px[i + 2] - mb);
+          }
+        }
+        if (dev / (m * 3) > UI_FLAT) continue;       // 무늬가 있는 칸은 창 바탕이 아니다
+        if ((mr + mg + mb) / 3 < 25) continue;        // 거의 검정 (어둡게 깔린 배경)
+        const key = `${(mr / 24) | 0},${(mg / 24) | 0},${(mb / 24) | 0}`;
+        const e = bins.get(key) || { n: 0, r: 0, g: 0, b: 0 };
+        e.n++; e.r += mr; e.g += mg; e.b += mb;
+        bins.set(key, e);
+      }
+    }
+    let best = null;
+    for (const e of bins.values()) if (!best || e.n > best.n) best = e;
+    if (!best || best.n < cells * 0.15) return null; // 한 색이 넓게 깔려 있지 않으면 창이 아니다
+    return [Math.round(best.r / best.n), Math.round(best.g / best.n), Math.round(best.b / best.n)];
   }
 
   // 적·젬 격자를 시간축으로 누르기. 나타날 때는 빠르게, 사라질 때는 천천히 —
@@ -692,14 +874,22 @@
         g.fillStyle = "rgba(10,10,20,0.55)";
         g.fillRect(0, 0, c.width, c.height);
         const pw = 240, ph = 200, px0 = c.width / 2 - pw / 2, py0 = c.height / 2 - ph / 2;
-        g.fillStyle = "#26243a";
+        // 뱀서 창처럼 파란 판에 빨간 테두리
+        g.fillStyle = "#1f3480";
         g.fillRect(px0, py0, pw, ph);
+        g.strokeStyle = "#c8372d";
+        g.lineWidth = 4;
+        g.strokeRect(px0, py0, pw, ph);
+        g.lineWidth = 1;
         g.fillStyle = "#ffd75a";
         g.font = "bold 18px sans-serif";
         g.fillText("LEVEL UP!", px0 + 70, py0 + 26);
         for (let k = 0; k < 4; k++) {
-          g.fillStyle = k === 0 ? "#4a4870" : "#34324c";
+          g.fillStyle = k === 0 ? "#3a5cc8" : "#2a449c";
           g.fillRect(px0 + 16, py0 + 40 + k * 38, pw - 32, 30);
+          g.fillStyle = "#fff";
+          g.font = "12px sans-serif";
+          g.fillText(["Whip", "Magic Wand", "Garlic", "Spinach"][k], px0 + 52, py0 + 60 + k * 38);
         }
         for (let k = 0; k < 40; k++) {  // 반짝이 (매 프레임 다른 자리)
           g.fillStyle = `rgba(255,230,160,${0.4 + Math.random() * 0.6})`;
@@ -775,6 +965,9 @@
       // 같은 장이 또 왔다. 잠깐이면 영상이 늦은 것 — 직전 결과를 그대로 쓰고
       // 비교 기준도 바꾸지 않는다. 오래가면 정말 멈춘 화면 — 아무것도 안 움직인다.
       resid = nowMs - lastFreshAt < STILL_MS ? lastResid : ZERO_RESID;
+      // 정말 멈췄으면 카메라도 안 움직인 것이다. 마지막으로 잰 이동량을 그대로 두면
+      // 멈춘 화면이 영원히 "카메라 움직이는 중" 으로 남는다.
+      if (resid === ZERO_RESID) lastShift = { dx: 0, dy: 0, err: 0, ok: true };
     } else {
       lastFreshAt = nowMs;
       lastShift = estimateShift(curGray, prevGray);
@@ -891,7 +1084,9 @@
       field, enemyGrid, gemGrid, enemyCount, gemCount, dots, thumb,
       motion: motionEma, hp: readHp(px), xp: readXp(px), red, redBase, hurt, jitter: jitterEma,
       shift: lastShift, usedMotion: !!resid && enemyMode !== "color", movingCount,
-      outerMove: resid ? outerMotion(resid, moveThr, gw / gh) : null,
+      outerMove: resid ? outerMotion(resid, moveThr, gw / gh, { gx, gy, gw, gh }) : null,
+      ui: uiColors(px),
+      learned: learnColorAsk ? learnNow(px) : null,
     };
   }
 
@@ -938,8 +1133,61 @@
   // 대신 채워진 경계가 어디인지를 찾는다. 기준은 매 프레임 바의 양쪽 끝에서 뽑는다 —
   // 왼쪽 끝은 차 있는 쪽, 오른쪽 끝은 비어 있는 쪽. 번쩍이면 기준과 본체가 같이
   // 변하므로 영향을 받지 않는다.
+  // 경험치 바: 뱀서는 화면 맨 위 전체 폭이 경험치 바다. 지정하지 않아도 게임 영역 맨 위
+  // 몇 줄 중에서 한 줄을 골라 읽는다. 두께 전체를 평균하면 테두리와 "LV" 글씨가 섞이므로
+  // 지정했을 때도 그 사각형의 가운데 한 줄만 읽는다.
+  //
+  // 읽는 방식: 왼쪽 끝부터 "켜진 칸"(선명하거나 밝은 칸)이 어디까지 이어지는지.
+  // 빈 트랙은 어둡고 흐리다. 바 색이 무엇이든 상관없고, 레벨업 때 바가 하얗게 반짝여도
+  // 밝으니 켜진 칸이다. 오른쪽 끝의 "LV 12" 글씨는 왼쪽에서 오다 빈 곳에서 멈추니 닿지 않는다.
+  const XP_ROWS = 4; // 맨 위에서 이만큼의 줄 중에서 고른다 (분석 화면 270줄 기준, 원본 약 16픽셀)
+  const XP_TEXT = 0.12; // 오른쪽 끝 이만큼은 "LV" 글씨 자리 — 줄을 고를 때는 보지 않는다
+  let xpRowY = null; // 마지막으로 고른 줄
+  let xpLine = null; // 화면에 그리려고 남긴다 { x, y, w } (0~1)
+
+  const isLit = (r, g, b) => Math.max(r, g, b) - Math.min(r, g, b) > 50 || (r + g + b) / 3 > 150;
+
+  // 한 줄 읽기. v: 왼쪽부터 켜진 길이 (0~1), tail: 그 뒤(글씨 자리 전까지)가 얼마나 빈 트랙 같은가
+  function xpRowRead(px, x, w, y) {
+    const x0 = Math.round(x * AW), n = Math.max(8, Math.round(w * AW));
+    const lit = (xx) => {
+      const i = (y * AW + Math.min(AW - 1, x0 + xx)) * 4;
+      return isLit(px[i], px[i + 1], px[i + 2]);
+    };
+    // 한 칸만 꺼져도 멈추면 잡티에 걸린다. 몇 칸 연달아 꺼져야 끝으로 본다.
+    const RUN = Math.max(2, (n * 0.03) | 0);
+    let edge = n;
+    for (let xx = 0; xx < n; xx++) {
+      let off = 0;
+      for (let j = xx; j < Math.min(n, xx + RUN); j++) if (!lit(j)) off++;
+      if (off === Math.min(RUN, n - xx)) { edge = xx; break; }
+    }
+    const end = Math.round(n * (1 - XP_TEXT));
+    let dark = 0, cnt = 0;
+    for (let xx = edge; xx < end; xx++) { cnt++; if (!lit(xx)) dark++; }
+    return { v: edge / n, tail: cnt ? dark / cnt : 1 };
+  }
+
   function readXp(px) {
-    return barEdge(px, xpRect);
+    if (xpRect) {
+      const y = Math.min(AH - 1, Math.round((xpRect.y + xpRect.h / 2) * AH));
+      xpLine = { x: xpRect.x, w: xpRect.w, y: (y + 0.5) / AH };
+      return xpRowRead(px, xpRect.x, xpRect.w, y).v;
+    }
+    const g = gameRect || { x: 0, y: 0, w: 1, h: 1 };
+    const top = Math.round(g.y * AH);
+    // 바의 한가운데 줄은 "왼쪽은 켜지고 나머지는 빈 트랙" 으로 깔끔하게 갈린다.
+    // 테두리 줄은 전부 꺼져 있고, 바 아래 맵은 뒤쪽이 빈 트랙처럼 어둡게 이어지지 않는다.
+    // 경험치가 0 이거나 꽉 차면 갈리지 않는다 — 그때는 전에 고른 줄을 그대로 쓴다.
+    let best = null, bestV = 0;
+    for (let y = top; y < Math.min(AH, top + XP_ROWS); y++) {
+      const r = xpRowRead(px, g.x, g.w, y);
+      if (r.v > 0.01 && r.v < 1 - XP_TEXT && r.tail >= 0.8 && r.v > bestV) { bestV = r.v; best = y; }
+    }
+    if (best !== null) xpRowY = best;
+    const y = xpRowY ?? Math.min(AH - 1, top + 1);
+    xpLine = { x: g.x, w: g.w, y: (y + 0.5) / AH };
+    return xpRowRead(px, g.x, g.w, y).v;
   }
 
   // 프롬프트 예시를 그대로 베껴 온 답을 걸러낸다. 못 읽었으면 못 읽었다고 나와야지,
@@ -971,57 +1219,6 @@
   function isPlaceholder(text) {
     const t = String(text || "").trim();
     return /^<.*>$/.test(t) || /name on card|its description|button label|label of|highlighted/i.test(t);
-  }
-
-  const dist3 = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]);
-
-  function barEdge(px, rect) {
-    if (!rect) return null;
-    const x0 = (rect.x * AW) | 0, y0 = (rect.y * AH) | 0;
-    const w = (rect.w * AW) | 0, h = Math.max(1, (rect.h * AH) | 0);
-    if (w < 8) return null;
-
-    // 열마다 대표 색 (세로로 평균)
-    const cols = [];
-    for (let x = 0; x < w; x++) {
-      let r = 0, g = 0, b = 0;
-      for (let y = 0; y < h; y++) {
-        const i = ((y0 + y) * AW + (x0 + x)) * 4;
-        r += px[i]; g += px[i + 1]; b += px[i + 2];
-      }
-      cols.push([r / h, g / h, b / h]);
-    }
-
-    // 양 끝에서 기준을 뽑는다. 끝의 테두리를 피하려고 조금 안쪽을 본다.
-    const k = Math.max(1, (w * 0.08) | 0);
-    const mid = (arr) => {
-      const c = [0, 0, 0];
-      for (const p of arr) { c[0] += p[0]; c[1] += p[1]; c[2] += p[2]; }
-      return c.map((v) => v / arr.length);
-    };
-    const L = mid(cols.slice(1, 1 + k));
-    const R = mid(cols.slice(w - 1 - k, w - 1));
-
-    // 두 톤으로 갈리지 않으면 꽉 찼거나 비어 있는 것이다.
-    if (dist3(L, R) < 45) {
-      // 채워진 바는 보통 더 밝고 색이 선명하다. 빈 트랙은 어두운 회색이다.
-      const all = mid(cols);
-      const lum = (all[0] + all[1] + all[2]) / 3;
-      const sat = Math.max(...all) - Math.min(...all);
-      return sat > 35 || lum > 110 ? 1 : 0;
-    }
-
-    // 왼쪽부터 훑다가 "비어 있는 쪽"이 연달아 나오는 지점이 경계다.
-    // 한 열만 보면 노이즈에 걸리므로 몇 열이 이어지는지 본다.
-    const RUN = Math.max(2, (w * 0.03) | 0);
-    for (let x = 0; x < w; x++) {
-      let empty = 0;
-      for (let j = x; j < Math.min(w, x + RUN); j++) {
-        if (dist3(cols[j], R) < dist3(cols[j], L)) empty++;
-      }
-      if (empty === Math.min(RUN, w - x)) return x / w;
-    }
-    return 1;
   }
 
   function readHp(px) {
@@ -1087,6 +1284,14 @@
     st.warned = true;
     const name = kind === "xp" ? "경험치" : "체력";
     const pct = (value * 100).toFixed(0);
+    if (kind === "xp" && !xpRect) {
+      logger.push(
+        `<span class="bad">경험치가 ${STUCK_SEC}초 내내 ${pct}% 그대로입니다</span> ` +
+          '<span class="dim">— 게임 영역 맨 위 한 줄에서 읽고 있습니다(화면 위 초록 선). 선이 경험치 바 위에 ' +
+          "있지 않으면 게임 영역을 게임 화면에 딱 맞게 다시 잡거나, 경험치 바를 직접 지정해주세요.</span>"
+      );
+      return;
+    }
     logger.push(
       `<span class="bad">${name} 바가 ${STUCK_SEC}초 내내 ${pct}% 그대로입니다</span> ` +
         '<span class="dim">— 영역을 잘못 잡았을 가능성이 큽니다. 바 색이 배경과 비슷하면 ' +
@@ -1521,6 +1726,8 @@ Answer with ONLY a JSON object, nothing else:
   // 아래 표: 방향마다 위협·탈출여지·젬·최종점수를 숫자로.
   let lastTaken = null; // 실제로 누른 방향 (블라인드면 화면과 무관)
   let lastWorldFrozen = false;
+  let lastFrozenWhy = "";
+  const frozenText = () => (lastWorldFrozen ? "예 (" + lastFrozenWhy + ")" : "아니오");
   let lastTakenBlind = false;
 
   function sightVisible() {
@@ -1649,8 +1856,23 @@ Answer with ONLY a JSON object, nothing else:
       }${info.usedMotion ? "" : " (이번 프레임은 색으로 대신함)"} · ` +
       `카메라 이동 (${info.shift.dx}, ${info.shift.dy}) · 정렬 오차 ${info.shift.err.toFixed(1)}` +
       `${info.shift.ok ? "" : " — 장면이 바뀜"} · 스스로 움직이는 점 ${info.movingCount}</span>` +
-      `<br /><span class="dim">게임 멈춤: <b>${lastWorldFrozen ? "예" : "아니오"}</b>` +
-      (info.outerMove !== null ? ` — 바깥 전장 움직임 ${(info.outerMove * 100).toFixed(2)}% (${STILL_RATIO * 100}% 미만 + 카메라 정지가 ${FREEZE_HOLD / 1000}초 이어지면 멈춤)` : "") +
+      (regions.length
+        ? `<br /><span class="dim">이 화면에서 LLM 에게 알려주는 영역: ${
+            regionsNow(stableState).map((r) => r.label).join(", ") || "없음"
+          }</span>`
+        : "") +
+      `<br /><span class="dim">게임 멈춤: <b>${frozenText()}</b>` +
+      (el.vsUiBlue.checked
+        ? ` — 파란 창 <b>${(info.ui.blue * 100).toFixed(0)}%</b> (${el.vsUiThr.value}% 넘으면 게임 아님) · ` +
+          `창이 아닌 파랑(바닥으로 보고 뺌) ${(info.ui.rough * 100).toFixed(0)}% · ` +
+          `창 색 ${uiColor ? "기억함" : "모름(파란 계열 전부)"} · ` +
+          `카메라 ${performance.now() - lastCamMoveAt >= CAM_STILL_MS ? "멈춤" : "움직임 — 창 아님"} · ` +
+          `빨강 ${(info.ui.red * 100).toFixed(1)}% · ` +
+          `창 없이 ${LONG_FREEZE / 1000}초 동안 아무것도 안 움직이면 그때도 멈춤`
+        : "") +
+      (info.outerMove !== null
+        ? ` · 바깥 전장 움직임 ${(info.outerMove * 100).toFixed(2)}% (${STILL_RATIO * 100}% 미만이면 정지)`
+        : "") +
       `</span>`;
   }
 
@@ -1778,6 +2000,7 @@ Answer with ONLY a JSON object, nothing else:
 
     const now = performance.now();
     if (now - lastActAt < 1400) return; // 화면이 넘어갈 시간을 준다
+    if (now < menuStuckUntil) return;   // 같은 화면에서 막혔다 — 계속 두드리지 않는다
 
     // 멈춘 화면은 전부 LLM이 지시한다. 예전에는 화면마다 누를 키를 미리 정해두고
     // 실패하면 그걸로 떨어졌는데, 화면마다 눌러야 할 것이 달라서 맞을 수가 없었고
@@ -1804,6 +2027,7 @@ Answer with ONLY a JSON object, nothing else:
       const nCards = Math.max(2, Math.min(5, Number(el.vsCards.value)));
       const choice = await llmPickCard(nCards);
       llmBusy = false;
+      if (choice && !uiColor) learnColorAsk = "auto"; // 레벨업 창이 확실히 떠 있는 순간이다
 
       if (!choice) {
         el.vsLlmState.textContent = "실패 — 누르지 않고 대기";
@@ -1819,34 +2043,107 @@ Answer with ONLY a JSON object, nothing else:
           `<span class="dim">[${choice.from} → ${choice.item} · ${choice.keys.join(" ")}] </span>` +
           `<span class="dim">${choice.why}</span>`
       );
+      const before = lastThumb; // 누르기 직전 화면 — 넘어갔는지를 이것과 비교한다
       await tapSequence(choice.keys);
-      pendingMenu = { state, keys: choice.keys, at: performance.now() };
+      pendingMenu = { state, keys: choice.keys, at: performance.now(), before };
       return;
     }
 
-    // 나머지 멈춘 화면은 무슨 키를 누를지 자체를 LLM이 정한다.
-    const decided = await llmDecideKeys(state);
-    llmBusy = false;
-
-    if (!decided) {
+    // 나머지 멈춘 화면: 무엇을 고를지는 LLM, 어떻게 가는지는 코드.
+    // 예전에는 "지금 커서 위치 → 목표" 를 한 번 읽고 이동 키와 엔터를 한꺼번에 눌렀다.
+    // 커서 위치를 잘못 읽거나, 목표가 이동으로 닿지 않는 버튼(확인·시작)이면 엉뚱한 칸에서
+    // 엔터가 눌렸고, 다음에 같은 화면을 보면 또 똑같이 눌렀다 (s s s s → 엔터 반복).
+    // 이제는 옮긴 뒤 다시 읽어서 커서가 목표 위에 있을 때만 엔터를 누른다.
+    const plan = await llmPlanMenu(state);
+    if (!plan) {
+      llmBusy = false;
       el.vsLlmState.textContent = "실패 — 누르지 않고 대기";
       return;
     }
-    const shown = decided.keys.join(" → ") || "누르지 않음";
-    el.vsLlmState.textContent = `${shown} (${(decided.took || 0).toFixed(1)}초)`;
-    // 무엇을 보고 어디로 가려 했는지 남긴다. 잘못 읽으면 바로 알아챌 수 있게.
-    const from = decided.options?.[decided.sel - 1];
-    const to = decided.options?.[decided.tgt - 1];
-    const path = from && to ? `${from} → ${to}` : "";
-    logger.push(
-      `<span class="tag">${STATES[state] || state}</span> <span class="pick">${shown}</span> ` +
-        (path ? `<span class="dim">[${path}] </span>` : "") +
-        `<span class="dim">${decided.why}</span>`
-    );
-    if (decided.keys.length) {
-      await tapSequence(decided.keys);
-      pendingMenu = { state, keys: decided.keys, at: performance.now() };
+    if (plan.stuck) {
+      llmBusy = false;
+      menuStuckUntil = performance.now() + STUCK_WAIT;
+      el.vsLlmState.textContent = "막힘 — 잠시 대기";
+      if (stuckLogged) return; // 20초마다 같은 말을 되풀이하지 않는다
+      stuckLogged = true;
+      logger.push(
+        `<span class="bad">이 화면에서 막혔습니다</span> ` +
+          `<span class="dim">— ${plan.stuck.map((t) => '"' + t + '"').join(", ")} 로 가서 엔터를 눌러봤지만 넘어가지 않았습니다. ` +
+          `${STUCK_WAIT / 1000}초 쉬었다가 다시 봅니다. 무엇을 눌러야 하는지 알면 화면 설정에서 이 화면에 메모로 알려주세요.</span>`
+      );
+      return;
     }
+    if (plan.tgt < 0) {
+      llmBusy = false;
+      el.vsLlmState.textContent = `누르지 않음 (${plan.took.toFixed(1)}초)`;
+      logger.push(
+        `<span class="tag">${STATES[state] || state}</span> <span class="pick">누르지 않음</span> ` +
+          `<span class="dim">${plan.why}</span>`
+      );
+      return;
+    }
+
+    const target = plan.options[plan.tgt];
+    const trail = []; // 무엇을 보고 어떻게 옮겼는지. 로그에 그대로 남긴다
+    const moved = [];
+    let cur = plan;
+    let tgt = plan.tgt;
+    for (let round = 0; cur.sel !== tgt; round++) {
+      if (round >= MENU_ROUNDS || !running) break;
+      const keys = moveKeys(cur.sel, tgt, cur.layout, cur.columns);
+      const grid = cur.layout === "grid" ? ` ${cur.columns}칸 격자` : "";
+      trail.push(`${cur.options[cur.sel]}에서 ${keys.join(" ")}${grid}`);
+      const beforeMove = lastThumb;
+      el.vsLlmState.textContent = `옮기는 중 (${keys.join(" ")})`;
+      await tapSequence(keys);
+      moved.push(...keys);
+      await new Promise((r) => setTimeout(r, 450)); // 커서가 옮겨 그려질 시간
+      const diff = beforeMove && lastThumb ? thumbDist(beforeMove, lastThumb) : 0;
+
+      el.vsLlmState.textContent = "옮긴 뒤 다시 읽는 중...";
+      const again = await llmSee(state, el.vsModel.value);
+      if (!again) break;
+      const t2 = indexOfOption(again.options, target);
+      if (t2 < 0) {
+        trail.push(`다시 읽으니 "${target}" 가 목록에 없음`);
+        cur = null;
+        break;
+      }
+      if (again.sel === cur.sel && again.options[again.sel] === cur.options[cur.sel]) {
+        trail.push(
+          `커서가 그대로 ${again.options[again.sel]} (화면 차이 ${diff.toFixed(3)}` +
+            (diff < 0.002 ? " — 이동 키가 안 먹은 듯" : " — 화면은 바뀜, 커서 위치를 잘못 읽는 듯") + ")"
+        );
+        cur = null;
+        break;
+      }
+      cur = again;
+      tgt = t2;
+    }
+    llmBusy = false;
+
+    const reached = cur && cur.sel === tgt;
+    stuckLogged = false;
+    menuTries.push({ state, options: plan.options, target, at: performance.now() });
+    const path = trail.length ? trail.join(" → ") : `이미 ${target} 위`;
+    if (!reached) {
+      el.vsLlmState.textContent = "커서를 못 옮김 — 엔터 안 누름";
+      logger.push(
+        `<span class="tag">${STATES[state] || state}</span> <span class="bad">"${target}" 로 못 옮겨서 엔터를 누르지 않았습니다</span> ` +
+          `<span class="dim">[${path}] ${plan.why}</span>`
+      );
+      return;
+    }
+
+    el.vsLlmState.textContent = `${target} 에서 엔터 (${plan.took.toFixed(1)}초)`;
+    logger.push(
+      `<span class="tag">${STATES[state] || state}</span> <span class="pick">${target}</span> ` +
+        `<span class="dim">[${path} → 엔터] ${plan.note ? plan.note + " · " : ""}${plan.why}</span>`
+    );
+    // 넘어갔는지는 엔터 직전 화면과 비교한다. 커서를 옮기며 바뀐 것은 넘어간 게 아니다.
+    const before = lastThumb;
+    await tapSequence(["enter"]);
+    pendingMenu = { state, keys: [...moved, "enter"], at: performance.now(), before };
   }
 
   // ---- 레벨업: LLM에게 맡기는 자리 ----
@@ -1896,6 +2193,128 @@ Answer with ONLY a JSON object, nothing else:
   const KOREAN_RULE =
     'Write the "why" field in KOREAN (한국어). ' +
     "Keep the other fields exactly as specified in English.";
+
+  // ---- 사용자가 이름 붙인 영역 ----
+  // 좌표는 분석 화면(= 공유된 화면 전체) 기준 0~1. screen 이 비어 있으면 모든 화면에서 쓴다.
+  let regions = load("regions", []);
+  let pendingRegion = null;
+
+  // LLM 에게 보낼 이미지(base 로 잘라낸 부분) 기준으로 좌표를 바꿔서 알려준다.
+  // state 가 주어지면 그 화면에 해당하는 영역만, all 이면 전부(어느 화면인지 함께).
+  function regionBlock(state, base, all) {
+    const b = base || { x: 0, y: 0, w: 1, h: 1 };
+    const rows = [];
+    for (const r of regions) {
+      if (!all && r.screen && r.screen !== state) continue;
+      const x0 = (r.x - b.x) / b.w, y0 = (r.y - b.y) / b.h;
+      const x1 = (r.x + r.w - b.x) / b.w, y1 = (r.y + r.h - b.y) / b.h;
+      if (x1 <= 0 || y1 <= 0 || x0 >= 1 || y0 >= 1) continue; // 보내는 이미지 밖
+      const c = (v) => Math.max(0, Math.min(1, v)).toFixed(2);
+      const where = all && r.screen ? ` (only on the ${r.screen} screen)` : "";
+      rows.push(`- "${r.label}"${where}: x ${c(x0)}~${c(x1)}, y ${c(y0)}~${c(y1)}`);
+    }
+    if (!rows.length) return "";
+    return (
+      "\nThe player has marked and named these regions of the image. Positions are fractions of\n" +
+      "the image width and height (0 = left/top, 1 = right/bottom). Use them to understand the screen:\n" +
+      rows.join("\n") +
+      "\n"
+    );
+  }
+
+  function regionsNow(state) {
+    return regions.filter((r) => !r.screen || r.screen === state);
+  }
+
+  function renderRegions() {
+    if (!regions.length) {
+      el.vsRegionList.textContent = "아직 이름 붙인 영역이 없습니다";
+      return;
+    }
+    el.vsRegionList.innerHTML = regions
+      .map(
+        (r, i) =>
+          `<div class="vs-region-row"><b style="color:#ffb35c">${r.label}</b> ` +
+          `<span class="dim">${r.screen ? STATES[r.screen] || r.screen : "모든 화면"} · ` +
+          `x ${(r.x * 100).toFixed(0)}~${((r.x + r.w) * 100).toFixed(0)}% · ` +
+          `y ${(r.y * 100).toFixed(0)}~${((r.y + r.h) * 100).toFixed(0)}%</span>` +
+          (r.why ? ` <span class="dim">— ${r.why}</span>` : "") +
+          ` <button class="vs-mini" data-del-region="${i}">지우기</button></div>`
+      )
+      .join("");
+  }
+
+  function openRegionForm(rect) {
+    pendingRegion = rect;
+    el.vsRegionForm.hidden = false;
+    el.vsRegionLabel.value = "";
+    el.vsRegionState.textContent = "-";
+    // 어느 화면에서 보이는지: 지금 알아본 화면이 있으면 그것, 아니면 모든 화면
+    el.vsRegionScope.innerHTML =
+      '<option value="">모든 화면</option>' +
+      Object.entries(STATES).map(([k, ko]) => `<option value="${k}">${ko}</option>`).join("");
+    el.vsRegionScope.value = stableState && STATES[stableState] && stableState !== "play" ? stableState : "";
+    el.vsRegionLabel.focus();
+    // 메뉴가 다른 데 가 있으면 폼이 안 보이므로 화면 설정으로 옮긴다
+    showSection("screen");
+    el.vsRegionForm.scrollIntoView({ block: "center" });
+  }
+
+  function closeRegionForm() {
+    pendingRegion = null;
+    el.vsRegionForm.hidden = true;
+  }
+
+  async function askRegion() {
+    if (!pendingRegion) return;
+    if (!el.vsModel.value) { el.vsRegionState.textContent = "LLM 메뉴에서 모델을 먼저 고르세요"; return; }
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      if (!(await connectBridge())) { el.vsRegionState.textContent = "브릿지에 연결하지 못했습니다"; return; }
+    }
+    const crop = cropRegion(pendingRegion, 640);
+    if (!crop) { el.vsRegionState.textContent = "화면 공유를 먼저 켜주세요"; return; }
+    el.vsRegionState.textContent = "묻는 중...";
+    const prompt = `This image is ONE PART of a Vampire Survivors screen, cut out by the player.
+What is this part? For example: experience bar, health bar, timer, gold counter, kill counter,
+level-up card list, reroll/skip/banish buttons, character list, character stats panel,
+start button, stage list, results table, treasure chest, the player character, the battlefield.
+
+Answer in KOREAN.
+
+Answer with ONLY a JSON object, nothing else:
+{"label": "<짧은 이름, 2~10자>", "why": "<무엇이 보이는지 한 문장>"}`;
+    const res = await askBridge(
+      { type: "llm_ask", model: el.vsModel.value, prompt, image: crop.b64, timeout: 40 },
+      45000
+    );
+    const o = res.error ? null : parseJson(res.text);
+    if (!o || !o.label) {
+      el.vsRegionState.textContent = `실패: ${res.error || "답을 해석 못 함"}`;
+      return;
+    }
+    el.vsRegionLabel.value = String(o.label).slice(0, 20);
+    el.vsRegionLabel.dataset.why = String(o.why || "").slice(0, 60);
+    el.vsRegionState.textContent = `${o.why || ""} (${(res.took || 0).toFixed(1)}초) — 맞으면 저장`;
+  }
+
+  function saveRegion() {
+    const label = (el.vsRegionLabel.value || "").trim().slice(0, 20);
+    if (!pendingRegion || !label) { el.vsRegionState.textContent = "이름을 적어주세요"; return; }
+    regions.push({
+      ...pendingRegion,
+      label,
+      screen: el.vsRegionScope.value || "",
+      why: el.vsRegionLabel.dataset.why || "",
+    });
+    el.vsRegionLabel.dataset.why = "";
+    save("regions", regions);
+    renderRegions();
+    logger.push(
+      `<span class="tag">영역</span> <span class="pick">${label}</span> ` +
+        `<span class="dim">— ${el.vsRegionScope.value ? STATES[el.vsRegionScope.value] : "모든 화면"}에서 LLM 이 이 위치를 알고 판단합니다</span>`
+    );
+    closeRegionForm();
+  }
 
   // ---- 지금 보고 있는 화면에 붙은 메모 ----
   // 예전에는 메모를 하나의 전역 목록으로 들고 다녔다. 그러면 관계없는 화면을 볼 때도
@@ -1957,7 +2376,7 @@ Tell dead and revive apart by what is on offer, not by the words "you died":
 - Revive / Continue / resurrect, keeping the same run going  -> revive
 - Retry / Restart / Main Menu / Play Again, which would start a NEW run  -> dead
 - A results table with time, kills or gold, and no way to resume  -> dead
-${noteBlock()}
+${regionBlock(null, gameRect, true)}${noteBlock()}
 ${KOREAN_RULE}
 
 Answer with ONLY a JSON object, nothing else:
@@ -2111,8 +2530,36 @@ Answer with ONLY a JSON object, nothing else:
       .join("");
   }
 
-  const MENU_KEYS = ["enter", "space", "up", "down", "left", "right"];
-  const MAX_MENU_KEYS = 4;
+  const MENU_KEYS = ["enter", "space", "up", "down", "left", "right", "w", "a", "s", "d"];
+  // 한 번에 누를 수 있는 이동 키 수. 캐릭터 선택 격자에서는 대각선 끝까지 갈 수 있어야 한다.
+  const MAX_MOVES = 8;
+  // 옮기고 다시 읽기를 몇 번까지 할지. 한 번 읽는 데 몇 초 걸린다.
+  const MENU_ROUNDS = 3;
+
+  // 메뉴 이동 키. 게임 안 이동에 쓰는 WASD 는 잘 먹는 게 확인됐다.
+  // 방향키는 확장 키라 NumLock 이 켜져 있으면 브릿지가 0xE0 을 한 번 더 보내는
+  // 불안정한 경로를 탄다. 그래서 기본은 WASD, 안 먹는 게임이면 방향키로 바꾼다.
+  const NAV = {
+    wasd: { up: "w", down: "s", left: "a", right: "d" },
+    arrows: { up: "up", down: "down", left: "left", right: "right" },
+  };
+  const navKey = (dir) => (NAV[el.vsNavKeys?.value] || NAV.wasd)[dir];
+
+  // from -> to 로 가는 키. 목록이면 한 방향, 격자면 위아래와 좌우를 따로 센다.
+  function moveKeys(from, to, layout, columns) {
+    const keys = [];
+    if (layout === "grid" && columns > 1) {
+      const dr = Math.floor(to / columns) - Math.floor(from / columns);
+      const dc = (to % columns) - (from % columns);
+      for (let k = 0; k < Math.abs(dr); k++) keys.push(navKey(dr > 0 ? "down" : "up"));
+      for (let k = 0; k < Math.abs(dc); k++) keys.push(navKey(dc > 0 ? "right" : "left"));
+    } else {
+      const d = to - from;
+      const dir = layout === "horizontal" ? (d > 0 ? "right" : "left") : d > 0 ? "down" : "up";
+      for (let k = 0; k < Math.abs(d); k++) keys.push(navKey(dir));
+    }
+    return keys.slice(0, MAX_MOVES);
+  }
 
   // ---- 1단계: 그림을 보고 화면을 읽는다 (판단은 시키지 않는다) ----
   function buildSeePrompt(state) {
@@ -2128,22 +2575,27 @@ key — then report the single button or prompt that dismisses it as the only op
 
 Report ONLY what you can see. Do not decide anything, do not choose anything.
 
-1. "options" - every selectable option on this screen, as printed, in screen order
-   (top to bottom, or left to right).
-2. "layout" - "vertical" if the options are stacked, "horizontal" if side by side.
-3. "selected" - the option that is ALREADY highlighted, copied word for word from your own
+1. "options" - every selectable option on this screen, as printed, in reading order
+   (left to right, then top to bottom). For characters without a printed name, describe
+   each briefly so they can be told apart.
+2. "layout" - "vertical" if the options are in one column, "horizontal" if in one row,
+   "grid" if they are laid out in several rows AND several columns (like a character
+   select screen).
+3. "columns" - for a grid, how many options are in each row. Otherwise 1.
+4. "selected" - the option the cursor is ON RIGHT NOW, copied word for word from your own
    options list. Exactly one option looks different: brighter fill, thicker or lighter
-   border, larger text, or an arrow/cursor next to it. Find that one.
-${noteBlock()}
+   border, larger text, an animated or raised portrait, or an arrow/cursor next to it.
+   Look carefully — this decides how many steps the cursor has to move.
+${regionBlock(state, gameRect)}${noteBlock()}
 ${KOREAN_RULE.replace('"why"', '"sees"')}
 
 Answer with ONLY a JSON object, nothing else:
-{"options": ["<label of option 1>", "<label of option 2>"], "layout": "vertical", "selected": "<label of the highlighted one>", "sees": "<화면에 무엇이 보이는지 한국어로 한 문장>"}`;
+{"options": ["<label of option 1>", "<label of option 2>"], "layout": "vertical", "columns": 1, "selected": "<label of the highlighted one>", "sees": "<화면에 무엇이 보이는지 한국어로 한 문장>"}`;
   }
 
   // ---- 2단계: 글자만 보고 무엇을 고를지 정한다 (그림을 같이 주지 않는다) ----
   // 그림과 함께 물으면 화면에 끌려가서 엉뚱한 항목을 고른다. 목록만 주면 잘 고른다.
-  function buildTargetPrompt(options, state) {
+  function buildTargetPrompt(options, state, selected, tries = []) {
     const KIND = {
       dead: "results / game-over",
       chest: "treasure chest reward",
@@ -2154,6 +2606,14 @@ Answer with ONLY a JSON object, nothing else:
       .map((r) => `- ${Math.floor(r.sec / 60)}분 ${Math.round(r.sec % 60)}초 생존`)
       .join("\n") || "(기록 없음)";
     const list = options.map((o, i) => `${i + 1}. ${o}`).join("\n");
+    const counts = {};
+    for (const t of tries) counts[t.target] = (counts[t.target] || 0) + 1;
+    const tried = Object.entries(counts)
+      .map(([name, n]) => '- moved to "' + name + '" and pressed Enter' + (n > 1 ? " (" + n + " times)" : ""))
+      .join("\n");
+    const triedBlock = tried
+      ? "\nAlready tried on this screen, and the screen did NOT move on:\n" + tried + "\nDo not choose those again.\n"
+      : "";
 
     return `You are operating a menu in the game Vampire Survivors.
 This is the ${KIND[state] || "title or menu"} screen.
@@ -2167,6 +2627,15 @@ ${goalText()}
 Recent runs:
 ${past}
 
+The cursor is on "${selected}" right now. Pressing Enter activates that option.
+
+How menus work in this game:
+- Pressing Enter on a character or a stage chooses it and moves on. You do NOT have to move
+  the cursor to a separate Confirm / Start / OK button first — those come after Enter.
+- Move the cursor only when the instruction asks for a DIFFERENT option than the selected
+  one. If the instruction does not name a specific character, stage or option, keep the
+  selected one: answer "${selected}".
+${triedBlock}
 Which single option carries out that instruction? Copy it exactly from the list above.
 If none of them do, answer "".
 Never choose quit, exit, or give up.
@@ -2203,24 +2672,19 @@ Answer with ONLY a JSON object, nothing else:
     return norm.findIndex((o) => o && (o.includes(v) || v.includes(o)));
   }
 
-  async function llmDecideKeys(state) {
-    const model = el.vsModel.value;
-    if (!model) return null;
+  // ---- 지금 화면을 읽는다 (처음 한 번, 그리고 커서를 옮긴 뒤 확인할 때) ----
+  async function llmSee(state, model) {
     const crop = cropRegion(gameRect, 900);
     if (!crop) return null;
-    const image = crop.b64;
-
-    // --- 1단계: 화면 읽기 ---
-    el.vsLlmState.textContent = "화면 읽는 중...";
-    const seenRes = await askBridge(
-      { type: "llm_ask", model, prompt: buildSeePrompt(state), image, timeout: 40 },
+    const res = await askBridge(
+      { type: "llm_ask", model, prompt: buildSeePrompt(state), image: crop.b64, timeout: 40 },
       45000
     );
-    if (seenRes.error) {
-      logger.push(`<span class="bad">LLM 실패: ${seenRes.error} — 누르지 않고 기다립니다</span>`);
+    if (res.error) {
+      logger.push(`<span class="bad">LLM 실패: ${res.error} — 누르지 않고 기다립니다</span>`);
       return null;
     }
-    const seen = parseJson(seenRes.text);
+    const seen = parseJson(res.text);
     const options = (Array.isArray(seen?.options) ? seen.options : [])
       .map((x) => String(x || "").trim().slice(0, 24))
       .filter(Boolean);
@@ -2228,16 +2692,62 @@ Answer with ONLY a JSON object, nothing else:
       logger.push('<span class="bad">화면에서 고를 항목을 못 읽었습니다 — 누르지 않고 기다립니다</span>');
       return null;
     }
-    const si = indexOfOption(options, seen.selected);
-    if (si < 0) {
+    const sel = indexOfOption(options, seen.selected);
+    if (sel < 0) {
       logger.push('<span class="bad">지금 뭐가 선택돼 있는지 못 읽었습니다 — 누르지 않고 기다립니다</span>');
       return null;
     }
+    return {
+      options,
+      sel,
+      layout: String(seen.layout || "").toLowerCase(),
+      columns: Math.max(1, parseInt(seen.columns, 10) || 1),
+      sees: seen.sees,
+      took: res.took || 0,
+    };
+  }
+
+  // ---- 같은 화면에서 같은 실수를 되풀이하지 않게 ----
+  // 무엇으로 가서 엔터를 눌렀는지 남긴다. 같은 화면(읽은 항목이 거의 같은)에서 또 묻게 됐다면
+  // 앞서 누른 것으로는 넘어가지 못했다는 뜻이다.
+  let menuTries = []; // { state, options, target, at }
+  let menuStuckUntil = 0;
+  const TRY_MEMORY = 300000; // 플레이로 넘어가면 바로 지운다 (다른 판의 같은 화면은 새로 본다)
+  let stuckLogged = false;
+  const TRY_LIMIT = 2; // 같은 곳으로 이만큼 가봤으면 그건 답이 아니다
+  const STUCK_WAIT = 20000;
+
+  function sameOptions(a, b) {
+    const hit = a.filter((x) => b.some((y) => similar(x, y) >= SIMILAR_ENOUGH)).length;
+    return hit >= Math.max(1, Math.min(a.length, b.length) * 0.6);
+  }
+
+  function triesHere(state, options) {
+    const now = performance.now();
+    menuTries = menuTries.filter((t) => now - t.at < TRY_MEMORY);
+    return menuTries.filter((t) => t.state === state && sameOptions(t.options, options));
+  }
+
+  const timesTried = (tries, name) => tries.filter((t) => similar(t.target, name) >= SIMILAR_ENOUGH).length;
+
+  // 무엇을 고를지까지 정한다. 키는 여기서 만들지 않는다 — 옮기면서 확인해야 하기 때문이다.
+  async function llmPlanMenu(state) {
+    const model = el.vsModel.value;
+    if (!model) return null;
+
+    // --- 1단계: 화면 읽기 ---
+    el.vsLlmState.textContent = "화면 읽는 중...";
+    const seen = await llmSee(state, model);
+    if (!seen) return null;
+    const tries = triesHere(state, seen.options);
 
     // --- 2단계: 무엇을 고를지 (그림 없이) ---
     el.vsLlmState.textContent = "고르는 중...";
     const pickRes = await askBridge(
-      { type: "llm_ask", model, prompt: buildTargetPrompt(options, state), timeout: 40 },
+      {
+        type: "llm_ask", model, timeout: 40,
+        prompt: buildTargetPrompt(seen.options, state, seen.options[seen.sel], tries),
+      },
       45000
     );
     if (pickRes.error) {
@@ -2245,29 +2755,37 @@ Answer with ONLY a JSON object, nothing else:
       return null;
     }
     const picked = parseJson(pickRes.text);
-    const why = String(picked?.why || "").slice(0, 80);
-    const took = (seenRes.took || 0) + (pickRes.took || 0);
+    const plan = {
+      ...seen,
+      tgt: -1,
+      why: String(picked?.why || "").slice(0, 80),
+      took: seen.took + (pickRes.took || 0),
+      note: "",
+    };
 
     // 빈 답 = 이 화면에서는 아직 누를 게 없다는 뜻
-    if (!String(picked?.target ?? "").trim()) {
-      return { keys: [], options, sel: si + 1, tgt: 0, why, sees: seen.sees, took };
-    }
-    const ti = indexOfOption(options, picked.target);
-    if (ti < 0) {
+    if (!String(picked?.target ?? "").trim()) return plan;
+    plan.tgt = indexOfOption(seen.options, picked.target);
+    if (plan.tgt < 0) {
       logger.push(
         `<span class="bad">LLM이 말한 "${picked.target}"를 목록에서 못 찾았습니다 — 누르지 않고 기다립니다</span>`
       );
       return null;
     }
 
-    // --- 3단계: 방향키 몇 번인지는 코드가 센다. 모델에게 시키면 자주 틀린다 ---
-    const steps = ti - si;
-    const horizontal = String(seen.layout || "").toLowerCase() === "horizontal";
-    const move = horizontal ? (steps > 0 ? "right" : "left") : steps > 0 ? "down" : "up";
-    const n = Math.min(Math.abs(steps), MAX_MENU_KEYS - 1);
-    const keys = [...Array(n).fill(move), "enter"].filter((k) => MENU_KEYS.includes(k));
-
-    return { keys, options, sel: si + 1, tgt: ti + 1, why, sees: seen.sees, took };
+    // 이미 두 번 가봤는데도 이 화면이면, 모델이 뭐라 하든 그건 답이 아니다.
+    // 지금 선택된 것에서 엔터만 눌러본다. 그것도 해봤으면 멈추고 사람에게 알린다.
+    const want = seen.options[plan.tgt];
+    const cur = seen.options[seen.sel];
+    if (timesTried(tries, want) >= TRY_LIMIT) {
+      if (plan.tgt !== seen.sel && timesTried(tries, cur) < TRY_LIMIT) {
+        plan.note = `"${want}" 로 ${timesTried(tries, want)}번 가봤지만 넘어가지 않아서, 지금 선택된 "${cur}" 에서 엔터만 누릅니다`;
+        plan.tgt = seen.sel;
+      } else {
+        plan.stuck = [...new Set(tries.map((t) => t.target))];
+      }
+    }
+    return plan;
   }
 
   async function tapSequence(keys) {
@@ -2310,7 +2828,7 @@ item name in larger text, and a description line underneath.
    Reroll, Skip or Banish. These are NOT cards and must not appear in "options".
 
 There are usually about ${nCards} upgrade cards, but trust the image over that number.
-${noteBlock()}
+${regionBlock("levelup", cardRect || gameRect)}${noteBlock()}
 
 ${KOREAN_RULE.replace('"why"', '"sees"')}
 
@@ -2381,10 +2899,9 @@ Answer with ONLY a JSON object, nothing else:
     if (!testImage && cardRect && !warnedCardRect) {
       warnedCardRect = true;
       logger.push(
-        '<span class="bad">카드 영역만 잘라 보내고 있습니다</span> ' +
-          '<span class="dim">— 그 안에 새로고침·건너뛰기·지우기까지 들어가 있지 않으면 ' +
-          "그 버튼들은 몰리 눈에 아예 안 보입니다. 확실하지 않으면 화면 설정에서 " +
-          "카드 영역 지정을 지우고 게임 화면 전체를 쓰는 편이 낫습니다.</span>"
+        '<span class="tag">레벨업</span> <span class="dim">지정한 레벨업 영역만 잘라 보냅니다. ' +
+          "새로고침·건너뛰기·삭제 버튼이 그 밖에 있으면 몰리 눈에 안 보입니다 — " +
+          "버튼이 안 읽히면 영역을 조금 넓게 다시 잡아주세요.</span>"
       );
     }
 
@@ -2506,10 +3023,7 @@ Answer with ONLY a JSON object, nothing else:
     // --- 3단계: 방향키 개수는 코드가 센다 ---
     // 모델에게 "몇 번째"를 시키면 이름은 맞히면서 번호를 틀린다. 그래서 여기서 뺀다.
     // 카드는 세로로 쌓여 있다. 버튼을 목록에서 뺐으므로 방향이 섞일 일이 없다.
-    const steps = ti - si;
-    const move = steps > 0 ? "down" : "up";
-    const n = Math.min(Math.abs(steps), options.length);
-    const keys = [...Array(n).fill(move), "enter"].filter((k) => MENU_KEYS.includes(k));
+    const keys = [...moveKeys(si, ti, "vertical", 1), "enter"].filter((k) => MENU_KEYS.includes(k));
 
     const why = String(picked?.why || "").slice(0, 80);
     pushRead({
@@ -2541,23 +3055,33 @@ Answer with ONLY a JSON object, nothing else:
   let pendingMenu = null;
   let menuStats = load("menuStats", {}); // 상태 -> { tried, worked }
 
-  function checkMenuOutcome(nowState) {
+  // 눌러서 넘어갔는지. 예전에는 '화면 종류 이름'이 바뀌었는지만 봤다. 그러면
+  // 캐릭터 선택 -> 스테이지 선택처럼 둘 다 '메뉴' 인 경우 화면은 바뀌었는데도
+  // "그대로입니다" 가 됐다. 누르기 직전 화면과 지금 화면을 직접 비교한다.
+  // 커서만 옮겨가는 정도(하이라이트 이동)는 차이가 작아서 넘어간 것으로 치지 않는다.
+  function checkMenuOutcome(nowState, nowThumb) {
     if (!pendingMenu) return;
-    const { state, keys, at } = pendingMenu;
+    const { state, keys, at, before } = pendingMenu;
     const elapsed = performance.now() - at;
+    const diff = before && nowThumb ? thumbDist(before, nowThumb) : 0;
+    const changed = nowState !== state || diff > MATCH_THRESHOLD;
 
-    if (nowState !== state) {
+    if (changed) {
       bumpMenu(state, true);
       if (el.vsLogOn.checked) {
-        logger.push(
-          `<span class="good">${STATES[state]}에서 ${keys.join(" → ")} 통함</span> → ${STATES[nowState] || nowState}`
-        );
+        const where =
+          nowState !== state
+            ? `→ ${STATES[nowState] || nowState}`
+            : `→ 다른 화면 (같은 종류, 화면 차이 ${diff.toFixed(3)})`;
+        logger.push(`<span class="good">${STATES[state]}에서 ${keys.join(" → ")} 통함</span> ${where}`);
       }
       pendingMenu = null;
     } else if (elapsed > 4000) {
       bumpMenu(state, false);
       logger.push(
-        `<span class="bad">${STATES[state]}에서 ${keys.join(" → ")} 눌렀지만 화면이 그대로입니다</span>`
+        `<span class="bad">${STATES[state]}에서 ${keys.join(" → ")} 눌렀지만 화면이 그대로입니다</span> ` +
+          `<span class="dim">(화면 차이 ${diff.toFixed(3)} — 키가 게임에 안 들어갔거나, 커서 위치를 잘못 읽었을 수 있습니다. ` +
+          `대상 창과 메뉴 이동 키 설정을 확인하세요)</span>`
       );
       pendingMenu = null;
     }
@@ -2589,6 +3113,7 @@ Answer with ONLY a JSON object, nothing else:
   let markMode = null;
   let dragStart = null;
   let dragNow = null;
+  const DRAG_MODES = ["game", "hp", "xp", "cards", "region"];
 
   function viewToNorm(e) {
     const r = view.getBoundingClientRect();
@@ -2600,7 +3125,8 @@ Answer with ONLY a JSON object, nothing else:
 
   view.addEventListener("mousedown", (e) => {
     if (!markMode) return;
-    if (markMode === "game" || markMode === "hp" || markMode === "xp") dragStart = viewToNorm(e);
+    // 예전에는 여기서 레벨업 영역(cards)이 빠져 있어서, 그 버튼으로는 드래그가 시작되지 않았다
+    if (DRAG_MODES.includes(markMode)) dragStart = viewToNorm(e);
   });
   view.addEventListener("mousemove", (e) => {
     if (dragStart) dragNow = viewToNorm(e);
@@ -2608,7 +3134,7 @@ Answer with ONLY a JSON object, nothing else:
   view.addEventListener("mouseup", (e) => {
     if (!markMode) return;
     const p = viewToNorm(e);
-    if (markMode === "game" || markMode === "hp" || markMode === "xp" || markMode === "cards") {
+    if (DRAG_MODES.includes(markMode)) {
       if (!dragStart) return;
       const rect = {
         x: Math.min(dragStart.x, p.x), y: Math.min(dragStart.y, p.y),
@@ -2616,12 +3142,19 @@ Answer with ONLY a JSON object, nothing else:
       };
       dragStart = dragNow = null;
       if (rect.w < 0.01 || rect.h < 0.005) return;
-      if (markMode === "game") {
+      if (markMode === "region") {
+        openRegionForm(rect);
+      } else if (markMode === "game") {
         gameRect = rect; save("game", rect);
         logger.push('<span class="good">게임 영역을 지정했습니다</span>');
       } else if (markMode === "cards") {
         cardRect = rect; save("cards", rect);
-        logger.push('<span class="good">레벨업 카드 영역을 지정했습니다</span>');
+        warnedCardRect = false;
+        logger.push(
+          '<span class="good">레벨업 영역을 지정했습니다</span>' +
+            '<span class="dim"> — 카드를 읽을 때 이 부분만 크게 잘라 보내고, ' +
+            "게임이 멈췄는지 볼 때는 이 부분을 빼고 봅니다</span>"
+        );
       } else if (markMode === "xp") {
         xpRect = rect; save("xp", rect);
         // 경험치는 색을 기억해두지 않는다. 레벨업 때 번쩍이면 그 색과 안 맞게 되기 때문에,
@@ -2663,7 +3196,9 @@ Answer with ONLY a JSON object, nothing else:
     if (mode) {
       setStatus(
         mode === "game" ? "게임 화면 영역을 드래그하세요"
-          : mode === "cards" ? "레벨업 카드가 뜨는 영역을 드래그하세요"
+          : mode === "cards" ? "레벨업 창 전체를 드래그하세요 (카드 + 새로고침·건너뛰기·삭제 버튼까지)"
+          : mode === "xp" ? "화면 맨 위 경험치 바를 드래그하세요"
+          : mode === "region" ? "이름을 붙일 부분을 드래그하세요"
           : "체력바를 드래그하세요 (가득 찬 상태에서)",
         "ok"
       );
@@ -2675,7 +3210,7 @@ Answer with ONLY a JSON object, nothing else:
       .map((k) => `${STATES[k]} 기억 ${(taught[k] || []).length}`)
       .join(" · ");
     el.vsMarks.textContent =
-      `게임영역 ${gameRect ? "지정됨" : "없음"} · 체력바 ${hpRect ? "지정됨" : "없음"} · 경험치바 ${xpRect ? "지정됨" : "없음"} · 카드영역 ${cardRect ? "지정됨" : "없음"} · ${counts}`;
+      `게임영역 ${gameRect ? "지정됨" : "없음"} · 체력바 ${hpRect ? "지정됨" : "없음"} · 경험치바 ${xpRect ? "지정됨" : "없음"} · 레벨업영역 ${cardRect ? "지정됨" : "없음"} · ${counts}`;
   }
 
   // ---- 그리기 ----
@@ -2703,8 +3238,34 @@ Answer with ONLY a JSON object, nothing else:
       }
     };
     box(gameRect, "#7fd858", "게임");
-    box(cardRect, "#c39bff", "카드");
+    box(cardRect, "#c39bff", "레벨업");
     box(xpRect, "#8ef5a0", "경험치");
+    if (xpLine) {
+      vctx.strokeStyle = "#8ef5a0";
+      vctx.lineWidth = 1;
+      vctx.beginPath();
+      vctx.moveTo(xpLine.x * view.width, xpLine.y * view.height);
+      vctx.lineTo((xpLine.x + xpLine.w) * view.width, xpLine.y * view.height);
+      vctx.stroke();
+      if (info && info.xp !== null) {
+        const ex = (xpLine.x + xpLine.w * info.xp) * view.width;
+        vctx.fillStyle = "#8ef5a0";
+        vctx.fillRect(ex - 2, xpLine.y * view.height - 5, 4, 10); // 읽은 경계
+      }
+    }
+    // 이름 붙인 영역: 지금 화면에서 쓰는 것은 진하게, 다른 화면용은 흐리게
+    for (const r of regions) {
+      const on = !r.screen || r.screen === stableState;
+      vctx.setLineDash([5, 4]);
+      box(r, on ? "#ffb35c" : "rgba(255,179,92,0.35)", r.label + (r.screen && !on ? " (다른 화면)" : ""));
+      vctx.setLineDash([]);
+    }
+    if (pendingRegion) box(pendingRegion, "#ffffff", "이름 붙일 영역");
+    if (el.vsUiBlue.checked && !cardRect) {
+      vctx.setLineDash([2, 5]);
+      box(uiCheckRect(), uiShown ? "#5aa9ff" : "rgba(90,169,255,0.45)", uiShown ? "파란 창 보임" : "파란 창 확인");
+      vctx.setLineDash([]);
+    }
     box(hpRect, "#ff7b6b", "체력");
     if (dragStart && dragNow) {
       box({
@@ -2788,8 +3349,21 @@ Answer with ONLY a JSON object, nothing else:
         ? info.outerMove < STILL_RATIO && info.shift.dx === 0 && info.shift.dy === 0
         : info.motion < FREEZE_MOTION;
     if (stillNow) { if (!stillSince) stillSince = now; } else stillSince = 0;
-    const worldFrozen = !!stillSince && now - stillSince >= FREEZE_HOLD;
+    // 파란 창을 보기로 했으면 그게 먼저다. 창이 떠 있으면 멈춘 화면, 없으면 플레이 —
+    // 아무것도 안 움직여도. 창 없이 멈추는 화면(상자·게임 오버)은 오래 멈춰 있을 때만 인정한다.
+    const uiOn = el.vsUiBlue.checked;
+    const uiThr = Number(el.vsUiThr.value) / 100;
+    // 한 번 창으로 봤으면 조금 덜 파래져도 유지한다 (창 안 글씨·아이콘이 바뀌며 흔들린다)
+    // 카메라가 움직이고 있으면 게임이 돌아가는 중이다. 파란 바닥이 아무리 넓어도 창이 아니다.
+    if (info.shift.ok && (info.shift.dx || info.shift.dy)) lastCamMoveAt = now;
+    const camStill = now - lastCamMoveAt >= CAM_STILL_MS;
+    const blueNow = camStill && info.ui.blue >= (uiShown ? uiThr * 0.7 : uiThr);
+    if (blueNow) { if (!blueSince) blueSince = now; } else blueSince = 0;
+    uiShown = !!blueSince && now - blueSince >= UI_HOLD;
+    const stillFrozen = !!stillSince && now - stillSince >= (uiOn ? LONG_FREEZE : FREEZE_HOLD);
+    const worldFrozen = uiOn ? uiShown || stillFrozen : stillFrozen;
     lastWorldFrozen = worldFrozen;
+    lastFrozenWhy = !worldFrozen ? "" : uiOn && uiShown ? "파란 창" : "움직임 없음";
 
     const cls = classify(info.thumb, worldFrozen);
 
@@ -2818,7 +3392,8 @@ Answer with ONLY a JSON object, nothing else:
       (settled ? "" : " · 확인 중");
     el.vsState.className = cls.guessed || !settled ? "dim" : "";
     el.vsFeat.textContent =
-      `게임 멈춤 ${worldFrozen ? "예" : "아니오"}` +
+      `게임 멈춤 ${frozenText()}` +
+      (uiOn ? ` · 파란 창 ${(info.ui.blue * 100).toFixed(0)}% (${el.vsUiThr.value}% 넘으면 게임 아님)` : "") +
       (info.outerMove !== null
         ? ` (바깥 전장 움직임 ${(info.outerMove * 100).toFixed(2)}%, 카메라 ${info.shift.dx},${info.shift.dy})`
         : ` (화면 변화 ${info.motion.toFixed(1)} — 카메라를 아직 못 잼)`) +
@@ -2830,13 +3405,15 @@ Answer with ONLY a JSON object, nothing else:
     el.vsHp.textContent =
       (info.hp === null ? "체력바 미지정" : `${(info.hp * 100).toFixed(0)}%`) +
       (info.hurt ? " · 피격!" : "");
-    el.vsXp.textContent = info.xp === null ? "경험치바 미지정" : `${(info.xp * 100).toFixed(0)}%`;
+    el.vsXp.textContent =
+      info.xp === null ? "못 읽음" : `${(info.xp * 100).toFixed(0)}%${xpRect ? "" : " (맨 위 한 줄)"}`;
     el.vsHp.className = info.hurt ? "bad" : "";
-    checkMenuOutcome(cls.state);
+    checkMenuOutcome(cls.state, info.thumb);
     maybeIdentify(cls, worldFrozen, now);
 
     if (running) {
       if (cls.state === "play") {
+        menuTries = []; // 메뉴를 빠져나왔다. 다음에 만나는 메뉴는 새로 본다
         // 끝났다고 보류해둔 게 있으면, 플레이가 얼마 만에 돌아왔는지로 판단한다.
         // 금방 돌아왔다면 부활이다 — 같은 판이므로 없던 일로 한다.
         if (pendingEnd) {
@@ -2893,6 +3470,7 @@ Answer with ONLY a JSON object, nothing else:
     el.vsFps.textContent = fps.toFixed(0);
     el.vsEnemyThrVal.textContent = el.vsEnemyThr.value;
     el.vsMoveThrVal.textContent = el.vsMoveThr.value;
+    el.vsUiThrVal.textContent = el.vsUiThr.value + "%";
     el.vsGemThrVal.textContent = el.vsGemThr.value;
     drawView(info);
     if (sightVisible()) drawSight(info);
@@ -3097,10 +3675,12 @@ Answer with ONLY a JSON object, nothing else:
     for (const k of Object.keys(customStates)) delete STATES[k];
     customStates = {};
     gameRect = null; hpRect = null; hpColor = null; cardRect = null;
+    regions = [];
+    renderRegions();
     xpRect = null;
     // 키 지정이 바뀌면 그 성공률 기록도 의미가 없어지므로 같이 지운다
     menuStats = {};
-    ["taught", "plan", "game", "hp", "hpColor", "xp", "menuStats", "cards", "customStates"].forEach((k) =>
+    ["taught", "plan", "game", "hp", "hpColor", "xp", "menuStats", "cards", "customStates", "regions", "uiColor"].forEach((k) =>
       localStorage.removeItem(STORE + "." + k)
     );
     renderMenuStats();
@@ -3160,10 +3740,54 @@ Answer with ONLY a JSON object, nothing else:
 
   el.vsWindow.value = load("window", "");
 
+  el.vsRegionAsk.addEventListener("click", askRegion);
+  el.vsRegionSave.addEventListener("click", saveRegion);
+  el.vsRegionCancel.addEventListener("click", closeRegionForm);
+  el.vsRegionLabel.addEventListener("keydown", (e) => { if (e.key === "Enter") saveRegion(); });
+  el.vsRegionList.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-del-region]");
+    if (!b) return;
+    const i = Number(b.dataset.delRegion);
+    const [gone] = regions.splice(i, 1);
+    save("regions", regions);
+    renderRegions();
+    if (gone) logger.push(`<span class="dim">영역 "${gone.label}" 을 지웠습니다</span>`);
+  });
+
+  el.vsNavKeys.value = load("navKeys", "wasd");
+  el.vsNavKeys.addEventListener("change", () => {
+    save("navKeys", el.vsNavKeys.value);
+    logger.push(`<span class="tag">메뉴 이동 키</span> ${el.vsNavKeys.selectedOptions[0].textContent}`);
+  });
+
   el.vsEnemyMode.value = load("enemyMode", "motion");
   el.vsEnemyMode.addEventListener("change", () => save("enemyMode", el.vsEnemyMode.value));
   el.vsMoveThr.value = load("moveThr", 22);
   el.vsMoveThr.addEventListener("change", () => save("moveThr", Number(el.vsMoveThr.value)));
+  el.vsUiBlue.checked = load("uiBlue", true);
+  el.vsUiBlue.addEventListener("change", () => {
+    save("uiBlue", el.vsUiBlue.checked);
+    logger.push(
+      `<span class="tag">게임 중인지 판단</span> ` +
+        (el.vsUiBlue.checked ? "파란 창이 보이면 게임 아님" : "움직임만 보고 판단 (예전 방식)")
+    );
+  });
+  el.vsUiThr.value = load("uiThr", 15);
+  el.vsUiThr.addEventListener("change", () => save("uiThr", Number(el.vsUiThr.value)));
+  el.vsUiLearn.addEventListener("click", () => {
+    if (!stream) {
+      logger.push('<span class="bad">화면 공유(또는 테스트 영상)를 먼저 켜주세요</span>');
+      return;
+    }
+    learnColorAsk = "manual";
+  });
+  el.vsUiForget.addEventListener("click", () => {
+    uiColor = null;
+    save("uiColor", null);
+    renderUiColor();
+    logger.push('<span class="tag">창 색</span> 잊었습니다 — 다시 파란 계열 전부를 창 후보로 봅니다');
+  });
+  renderUiColor();
 
   el.vsBlindMode.value = load("blindMode", "off");
   el.vsBlindMode.addEventListener("change", () => {
@@ -3210,7 +3834,9 @@ Answer with ONLY a JSON object, nothing else:
   renderMarks();
   renderHints();
   renderReadLog();
+  renderRegions();
   renderBlindStats();
+  showSection(load("menu", "monitor"));
   renderTeachButtons();
   renderRuns();
   renderMenuStats();
