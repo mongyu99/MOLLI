@@ -2,5 +2,8 @@
 
 # 파이썬 가상환경 (32MB). 새 PC에서는 README 의 순서대로 다시 만든다.
 bot/.venv/
+
+# 폰으로 보기에 등록한 기기 (쿠키 해시). PC 마다 따로 등록한다.
+bot/remote_devices.json
 __pycache__/
 *.pyc

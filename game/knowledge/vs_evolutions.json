@@ -1,0 +1,1860 @@
+{
+ "source": "나무위키 'Vampire Survivors/아이템/진화 무기' 문서의 조합식",
+ "url": "https://namu.wiki/w/Vampire%20Survivors/%EC%95%84%EC%9D%B4%ED%85%9C/%EC%A7%84%ED%99%94%20%EB%AC%B4%EA%B8%B0",
+ "license": "CC BY-NC-SA 2.0 KR (나무위키). 조합 사실만 옮겼고 설명 글은 넣지 않았다.",
+ "fetched": "2026-09-25",
+ "rule": "진화: 무기를 최고 레벨(보통 8)로 올리고 필요 아이템을 가진 채로, 10분 이후 보물 상자를 열면 진화한다.",
+ "evolutions": [
+  {
+   "evolved": "피눈물",
+   "en": "Bloody Tears",
+   "weapons": [
+    "채찍"
+   ],
+   "needs": [
+    "검은 심장"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "신성한 지팡이",
+   "en": "Holy Wand",
+   "weapons": [
+    "마법 지팡이"
+   ],
+   "needs": [
+    "빈 책"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "천 개의 칼날",
+   "en": "Thousand Edge",
+   "weapons": [
+    "단검"
+   ],
+   "needs": [
+    "팔 보호대"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "죽음의 나선",
+   "en": "Death Spiral",
+   "weapons": [
+    "도끼"
+   ],
+   "needs": [
+    "촛대"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "천상의 검",
+   "en": "Heaven Sword",
+   "weapons": [
+    "십자가"
+   ],
+   "needs": [
+    "클로버"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "불경한 기도문",
+   "en": "Unholy Vespers",
+   "weapons": [
+    "성경"
+   ],
+   "needs": [
+    "주문속박기"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "헬파이어",
+   "en": "Hellfire",
+   "weapons": [
+    "불의 지팡이"
+   ],
+   "needs": [
+    "시금치"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "영혼 포식자",
+   "en": "Soul Eater",
+   "weapons": [
+    "마늘"
+   ],
+   "needs": [
+    "붉은 심장"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "정화자",
+   "en": "La Borra",
+   "weapons": [
+    "성수"
+   ],
+   "needs": [
+    "매혹구"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "절멸",
+   "en": "NO FUTURE",
+   "weapons": [
+    "룬트레이서"
+   ],
+   "needs": [
+    "갑옷"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "번개 고리",
+   "en": "Thunder Loop",
+   "weapons": [
+    "번개 반지"
+   ],
+   "needs": [
+    "복제 반지"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "매혹의 달",
+   "en": "Gorgeous Moon",
+   "weapons": [
+    "오망성"
+   ],
+   "needs": [
+    "왕관"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "파괴자",
+   "en": "Vandalier",
+   "weapons": [
+    "하얀 비둘기",
+    "검은 비둘기"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "피에라지",
+   "en": "Phieraggi",
+   "weapons": [
+    "피에라 데 투펠로",
+    "에잇 더 스패로우"
+   ],
+   "needs": [
+    "티라미수"
+   ],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "흉포한 굶주림",
+   "en": "Vicious Hunger",
+   "weapons": [
+    "마녀의 고양이"
+   ],
+   "needs": [
+    "돌가면"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "마력의 결정체",
+   "en": "Mannajja",
+   "weapons": [
+    "마나의 노래"
+   ],
+   "needs": [
+    "미치광이의 두개골"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "발키리 터너",
+   "en": "Valkyrie Turner",
+   "weapons": [
+    "검은 드릴"
+   ],
+   "needs": [
+    "날개"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "무한 회랑",
+   "en": "Infinite Corridor",
+   "weapons": [
+    "시곗바늘"
+   ],
+   "needs": [
+    "금 반지",
+    "은 반지"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "진홍의 망토",
+   "en": "Crimson Shroud",
+   "weapons": [
+    "월계수"
+   ],
+   "needs": [
+    "좌 메탈리오",
+    "우 메탈리오"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "붉은장미 덩쿨",
+   "en": "Fuwalafuwaloo",
+   "weapons": [
+    "성스러운 바람",
+    "피눈물"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "이중 팔찌",
+   "en": "Bi-Bracelet",
+   "weapons": [
+    "팔찌"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "삼중 팔찌",
+   "en": "Tri-Bracelet",
+   "weapons": [
+    "이중 팔찌"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "주요한 해결책",
+   "en": "Sole Solution",
+   "weapons": [
+    "승리의 검"
+   ],
+   "needs": [
+    "토로나의 상자"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "잘뭣된 주문의 재",
+   "en": "Ashes of",
+   "weapons": [
+    "잘못된 주문의 불꽃"
+   ],
+   "needs": [
+    "토로나의 상자"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "마조 파밀리아",
+   "en": "Mazo Familiar",
+   "weapons": [
+    "파코 바틸리아"
+   ],
+   "needs": [
+    "검은 심장"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "총격전",
+   "en": "Gunastrophe",
+   "weapons": [
+    "탄약 아팔레트"
+   ],
+   "needs": [
+    "팔 보호대"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "영적 교란",
+   "en": "Spirit Disturbance",
+   "weapons": [
+    "저세상 번개"
+   ],
+   "needs": [
+    "티라미수"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "천상의 장창",
+   "en": "Celestial Voulge",
+   "weapons": [
+    "유리 판당고"
+   ],
+   "needs": [
+    "날개"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "세라픽 크라이",
+   "en": "Seraphic Cry",
+   "weapons": [
+    "산타 재블린"
+   ],
+   "needs": [
+    "클로버"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "가에야의 품",
+   "en": "Embrace of Gaea",
+   "weapons": [
+    "가에야의 시선"
+   ],
+   "needs": [
+    "파마산 보호구"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "키라-스톤",
+   "en": "Kyra-Stones",
+   "weapons": [
+    "마기 스톤"
+   ],
+   "needs": [
+    "카로마의 마나"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "Photonstorm",
+   "en": "Photonstorm",
+   "weapons": [
+    "Phas3r"
+   ],
+   "needs": [
+    "빈 책"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "사악한 통치자",
+   "en": "Wicked Ruler",
+   "weapons": [
+    "혼돈의 룬"
+   ],
+   "needs": [
+    "주문속박기"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "축제의 바람",
+   "en": "Festive Winds",
+   "weapons": [
+    "은색 바람"
+   ],
+   "needs": [
+    "붉은 심장"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "고다이 셔플",
+   "en": "Godai Shuffle",
+   "weapons": [
+    "사계절"
+   ],
+   "needs": [
+    "촛대"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "밤 메아리",
+   "en": "Echo Night",
+   "weapons": [
+    "밤 소환"
+   ],
+   "needs": [
+    "복제 반지"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "조도르",
+   "en": "J'Odore",
+   "weapons": [
+    "신기루 로브"
+   ],
+   "needs": [
+    "매혹구"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "무라마사",
+   "en": "Muramasa",
+   "weapons": [
+    "밤의 검"
+   ],
+   "needs": [
+    "돌가면"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "부 루 불레",
+   "en": "Boo Roo Boolle",
+   "weapons": [
+    "밀레 볼레 블루"
+   ],
+   "needs": [
+    "주문속박기"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "마법주문 통합본",
+   "en": "SpellStrom",
+   "weapons": [
+    "마법주문 두루마리",
+    "마법주문 유창본",
+    "마법주문 전능본"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "레지오네어",
+   "en": "Legionnaire",
+   "weapons": [
+    "에스키치버"
+   ],
+   "needs": [
+    "갑옷"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "밀리어네어",
+   "en": "Millionaire",
+   "weapons": [
+    "섬광의 화살"
+   ],
+   "needs": [
+    "팔 보호대"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "루미네어",
+   "en": "Luminaire",
+   "weapons": [
+    "프리즈마틱 미사일"
+   ],
+   "needs": [
+    "왕관"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "오피온",
+   "en": "Ophion",
+   "weapons": [
+    "그림자 시종"
+   ],
+   "needs": [
+    "미치광이의 두개골"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "긴급회의",
+   "en": "Emergency Meeting",
+   "weapons": [
+    "신고",
+    "미니 크루원"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": "최고 레벨이어야 함"
+  },
+  {
+   "evolved": "교차된 전선",
+   "en": "Crossed Wires",
+   "weapons": [
+    "행운의 카드긁기",
+    "미니 기술자"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": "최고 레벨이어야 함"
+  },
+  {
+   "evolved": "초자연적 스캔",
+   "en": "Paranormal Scan",
+   "weapons": [
+    "생명 징후 스캔",
+    "미니 유령"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": "최고 레벨이어야 함"
+  },
+  {
+   "evolved": "부당한 방출",
+   "en": "Unjust Ejection",
+   "weapons": [
+    "오락가락 환풍구",
+    "미니 형상 변환자"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": "최고 레벨이어야 함"
+  },
+  {
+   "evolved": "소행성 파괴",
+   "en": "Clear Asteroids",
+   "weapons": [
+    "파편 파괴",
+    "미니 보호자"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": "최고 레벨이어야 함"
+  },
+  {
+   "evolved": "임포스메롱",
+   "en": "Impostongue",
+   "weapons": [
+    "샤프 메롱",
+    "미니 임포스터"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": "최고 레벨이어야 함"
+  },
+  {
+   "evolved": "로켓 과학",
+   "en": "Rocket Science",
+   "weapons": [
+    "과학 암석",
+    "미니 과학자"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": "최고 레벨이어야 함"
+  },
+  {
+   "evolved": "프로토타입 A",
+   "en": "Prototype A",
+   "weapons": [
+    "장총",
+    "무기 파워업"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "프로토타입 B",
+   "en": "Prototype B",
+   "weapons": [
+    "단총",
+    "무기 파워업"
+   ],
+   "needs": [
+    "팔 보호대"
+   ],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "프로토타입 C",
+   "en": "Prototype C",
+   "weapons": [
+    "스프레드 샷",
+    "무기 파워업"
+   ],
+   "needs": [
+    "빈 책"
+   ],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "프론토 빔",
+   "en": "Pronto Beam",
+   "weapons": [
+    "C-U-레이저",
+    "무기 파워업"
+   ],
+   "needs": [
+    "티라미수"
+   ],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "Fire-L3GS",
+   "en": "Fire-L3GS",
+   "weapons": [
+    "총기",
+    "무기 파워업"
+   ],
+   "needs": [
+    "촛대"
+   ],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "웨이브 빔",
+   "en": "Wave Beam",
+   "weapons": [
+    "소닉 블룸",
+    "무기 파워업"
+   ],
+   "needs": [
+    "갑옷"
+   ],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "다단 미사일",
+   "en": "Multistage Missiles",
+   "weapons": [
+    "귀소 실패",
+    "무기 파워업"
+   ],
+   "needs": [
+    "복제 반지"
+   ],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "공중어뢰",
+   "en": "Atmo-Torpedo",
+   "weapons": [
+    "다이버 광산",
+    "무기 파워업"
+   ],
+   "needs": [
+    "매혹구"
+   ],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "BFC2000-AD",
+   "en": "BFC2000-AD",
+   "weapons": [
+    "블레이드 석궁",
+    "무기 파워업"
+   ],
+   "needs": [
+    "클로버"
+   ],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "타임 워프",
+   "en": "Time Warp",
+   "weapons": [
+    "프리즘 라스",
+    "무기 파워업"
+   ],
+   "needs": [
+    "날개"
+   ],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "큰 퍼지 주먹",
+   "en": "Big Fuzzy Fist",
+   "weapons": [
+    "메탈 클로",
+    "무기 파워업"
+   ],
+   "needs": [
+    "검은 심장"
+   ],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "뱀파이어 킬러",
+   "en": "Vampire Killer",
+   "weapons": [
+    "연금술 채찍"
+   ],
+   "needs": [
+    "티라미수"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "스피릿 토네이도 팁",
+   "en": "Spirit Tornado Tip",
+   "weapons": [
+    "윈드 채찍"
+   ],
+   "needs": [
+    "왕관"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "크로스 크래셔 팁",
+   "en": "Cross Crasher Tip",
+   "weapons": [
+    "플래티넘 채찍"
+   ],
+   "needs": [
+    "클로버"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "하이드로스토머 팁",
+   "en": "Hydrostormer Tip",
+   "weapons": [
+    "드래곤 워터 채찍"
+   ],
+   "needs": [
+    "매혹구"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "크리새그림 팁",
+   "en": "Crissaegrim Tip",
+   "weapons": [
+    "소닉 채찍"
+   ],
+   "needs": [
+    "미치광이의 두개골"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "모르메길 팁",
+   "en": "Mormegil Tip",
+   "weapons": [
+    "제트 블랙 채찍"
+   ],
+   "needs": [
+    "돌가면"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "데이브레이커 팁",
+   "en": "Daybreaker Tip",
+   "weapons": [
+    "비부티 채찍"
+   ],
+   "needs": [
+    "촛대"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "오라블러스터 팁",
+   "en": "Aurablaster Tip",
+   "weapons": [
+    "색즉시공 채찍"
+   ],
+   "needs": [
+    "검은 심장"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "야규 수리검",
+   "en": "Yagyu Shuriken",
+   "weapons": [
+    "수리검"
+   ],
+   "needs": [
+    "빈 책"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "브와카 단검",
+   "en": "Bwaka Knife",
+   "weapons": [
+    "곡선 단검"
+   ],
+   "needs": [
+    "팔 보호대"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "롱 이누스",
+   "en": "Long Inus",
+   "weapons": [
+    "투창"
+   ],
+   "needs": [
+    "주문속박기"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "스텔라 블레이드",
+   "en": "Stellar Blade",
+   "weapons": [
+    "원반"
+   ],
+   "needs": [
+    "파마산 보호구"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "구난 볼",
+   "en": "Wrecking Ball",
+   "weapons": [
+    "아이언 볼"
+   ],
+   "needs": [
+    "갑옷"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "주얼 건",
+   "en": "Jewel Gun",
+   "weapons": [
+    "실버 리볼버"
+   ],
+   "needs": [
+    "카로마의 마나"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "RPG",
+   "en": "The RPG",
+   "weapons": [
+    "손 수류탄"
+   ],
+   "needs": [
+    "촛대"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "식사 티켓",
+   "en": "Meal Ticket",
+   "weapons": [
+    "와인 잔",
+    "티라미수"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": "최고 레벨이어야 함"
+  },
+  {
+   "evolved": "살라멘더",
+   "en": "Salamender",
+   "weapons": [
+    "레이징 파이어"
+   ],
+   "needs": [
+    "시금치"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "코키투스",
+   "en": "Cocytus",
+   "weapons": [
+    "아이스 팡"
+   ],
+   "needs": [
+    "주문속박기"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "폐렴 템페스타",
+   "en": "Pneuma Tempestas",
+   "weapons": [
+    "게일 포스"
+   ],
+   "needs": [
+    "팔 보호대"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "젬마 토르포",
+   "en": "Gemma Torpor",
+   "weapons": [
+    "록 라이엇"
+   ],
+   "needs": [
+    "돌가면"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "테네브리스 토니트러스",
+   "en": "Tenebris Tonitrus",
+   "weapons": [
+    "풀구르"
+   ],
+   "needs": [
+    "복제 반지"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "케렘 모버스",
+   "en": "Keremet Morbus",
+   "weapons": [
+    "케레멧 버블"
+   ],
+   "needs": [
+    "갑옷"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "악몽",
+   "en": "Nightmare",
+   "weapons": [
+    "헥스"
+   ],
+   "needs": [
+    "미치광이의 두개골"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "성역",
+   "en": "Sanctuary",
+   "weapons": [
+    "레펙시오"
+   ],
+   "needs": [
+    "클로버"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "스타마짜",
+   "en": "Stamazza",
+   "weapons": [
+    "철퇴"
+   ],
+   "needs": [
+    "검은 심장"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "문 로드",
+   "en": "Moon Rod",
+   "weapons": [
+    "별 도리깨"
+   ],
+   "needs": [
+    "붉은 심장"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "썬더볼트 스피어",
+   "en": "Thunderbolt Spear",
+   "weapons": [
+    "알루카드 창"
+   ],
+   "needs": [
+    "날개"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "궁니르 수리스",
+   "en": "Gungnir-Souris",
+   "weapons": [
+    "트라이던트"
+   ],
+   "needs": [
+    "복제 반지"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "다크 아이언 실드",
+   "en": "Dark Iron Shield",
+   "weapons": [
+    "아이언 실드"
+   ],
+   "needs": [
+    "파마산 보호구"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "신성한 비스트의 탑 실드",
+   "en": "Sacred Beasts Tower Shield",
+   "weapons": [
+    "수호 방패"
+   ],
+   "needs": [
+    "붉은 심장"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "룬 검",
+   "en": "Rune Sword",
+   "weapons": [
+    "튀르핑"
+   ],
+   "needs": [
+    "시금치"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "알루카드 검",
+   "en": "Alucard Swords",
+   "weapons": [
+    "알루카트 스워브"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": "최고 레벨이어야 함"
+  },
+  {
+   "evolved": "알루카드 쉴드",
+   "en": "Alucard Shield",
+   "weapons": [
+    "알루카드 검"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": "5개의 진화 무기; 최대 레벨을 달성한 6개의 장신구"
+  },
+  {
+   "evolved": "볼 콘포데레",
+   "en": "Vol Confodere",
+   "weapons": [
+    "콘포데레"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "멜리오 콘포데레",
+   "en": "Melio Confodere",
+   "weapons": [
+    "볼 콘포데레"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": "최고 레벨이어야 함"
+  },
+  {
+   "evolved": "니테스코",
+   "en": "Nitesco",
+   "weapons": [
+    "글로버스"
+   ],
+   "needs": [
+    "빈 책"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "에이서바투스",
+   "en": "Acerbatus",
+   "weapons": [
+    "옵티컬 샷"
+   ],
+   "needs": [
+    "카로마의 마나"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "트리넘 커스토뎀",
+   "en": "Trinum Custodem",
+   "weapons": [
+    "덱스트로 쿠스토스",
+    "시니스트로 쿠스토스",
+    "센트럴리스 쿠스토스"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "전하의 힘",
+   "en": "Power of Sire",
+   "weapons": [
+    "도미누스의 분노",
+    "도미누스의 증오",
+    "도미누스의 고뇌"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "라피두스 피오",
+   "en": "Rapidus Fio",
+   "weapons": [
+    "소닉 질주"
+   ],
+   "needs": [
+    "날개"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "볼 루미나시오",
+   "en": "Vol Luminatio",
+   "weapons": [
+    "루미나시오"
+   ],
+   "needs": [
+    "왕관"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "볼 움브라",
+   "en": "Vol Umbra",
+   "weapons": [
+    "움브라"
+   ],
+   "needs": [
+    "매혹구"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "대학",
+   "en": "Universitas",
+   "weapons": [
+    "볼 루미나시오",
+    "볼 움브라"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "밀리언 컷",
+   "en": "Million Cut",
+   "weapons": [
+    "발만웨이",
+    "천 개의 칼날"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "9번째 서클",
+   "en": "Ninth Circle",
+   "weapons": [
+    "빙검",
+    "불경한 기도문"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "다이즈 아이라",
+   "en": "Dies Irae",
+   "weapons": [
+    "고스의 화살",
+    "마력의 결정체"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "카디아 플레게톤",
+   "en": "Kardia Phlegeton",
+   "weapons": [
+    "오라블라스트",
+    "헬파이어"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "라피스트 테피스토",
+   "en": "Lapiste Tepisto",
+   "weapons": [
+    "카이저 너클",
+    "삼중 팔찌"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "클레임 솔레",
+   "en": "Claimh Solais",
+   "weapons": [
+    "포켓 나이프"
+   ],
+   "needs": [
+    "토로나의 상자"
+   ],
+   "needs_max": true,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "어둠 환상",
+   "en": "Darkness Illusion",
+   "weapons": [
+    "스바로크 동상",
+    "발키리 터너"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "카니지 하트",
+   "en": "Carnage Heart",
+   "weapons": [
+    "트롤 폭탄",
+    "절멸"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "하이드로 펌프 클라이맥스",
+   "en": "Hydro Pump Climax",
+   "weapons": [
+    "하이드로 스톰",
+    "정화자"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "아치 앵글",
+   "en": "Arch Angle",
+   "weapons": [
+    "그랜드 크로스",
+    "천상의 검"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "빛의 정령",
+   "en": "Spirit of Light",
+   "weapons": [
+    "정령 소환",
+    "신성한 지팡이"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "죽음의 유산: 소울 리버",
+   "en": "Legacy of Death: Soul River",
+   "weapons": [
+    "다크 리프트",
+    "죽음의 나선"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "비자야 자매",
+   "en": "Vjaya Sisters",
+   "weapons": [
+    "소드 브라더스",
+    "번개 고리"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "비너스 초승달",
+   "en": "Venus Crescent",
+   "weapons": [
+    "스피릿 토네이도 소환",
+    "매혹의 달"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "다크 프로가모포시스",
+   "en": "Dark Frogamorphosis",
+   "weapons": [
+    "아누라",
+    "영혼 포식자"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "시계 탑",
+   "en": "Clock Tower",
+   "weapons": [
+    "엔도 기어",
+    "페리 진자",
+    "마이오 리프트",
+    "에피 헤드"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": true,
+   "note": ""
+  },
+  {
+   "evolved": "드레스 검",
+   "en": "Dress Sword",
+   "weapons": [
+    "플뢰레"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": "섬광 기술을 익혀야 함"
+  },
+  {
+   "evolved": "에스파타 로페라",
+   "en": "Espada Ropera",
+   "weapons": [
+    "드레스 검"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": "섬광 기술을 익혀야 함"
+  },
+  {
+   "evolved": "로드스타",
+   "en": "Lordstar",
+   "weapons": [
+    "타운 소드"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": "섬광 기술을 익혀야 함"
+  },
+  {
+   "evolved": "추격형 블레이드",
+   "en": "Pursuant Blades",
+   "weapons": [
+    "스플래셔"
+   ],
+   "needs": [
+    "주문속박기"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": "섬광 기술을 익혀야 함"
+  },
+  {
+   "evolved": "Zweihander",
+   "en": "Zweihander",
+   "weapons": [
+    "플랑베르주"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": "섬광 기술을 익혀야 함"
+  },
+  {
+   "evolved": "갈라틴",
+   "en": "Galatyn",
+   "weapons": [
+    "Zweihander"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": "섬광 기술을 익혀야 함"
+  },
+  {
+   "evolved": "압력 포인트",
+   "en": "Pressure Point",
+   "weapons": [
+    "펀치"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": "섬광 기술을 익혀야 함"
+  },
+  {
+   "evolved": "금빛 손",
+   "en": "Gilded Hand",
+   "weapons": [
+    "압력 포인트"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": "섬광 기술을 익혀야 함"
+  },
+  {
+   "evolved": "트라이앵글 킥",
+   "en": "Triangle Kick",
+   "weapons": [
+    "킥"
+   ],
+   "needs": [
+    "붉은 심장"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": "섬광 기술을 익혀야 함"
+  },
+  {
+   "evolved": "헤카톤 기관총",
+   "en": "Hecaton Machine Gun",
+   "weapons": [
+    "세이버 기관총"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": "섬광 기술을 익혀야 함"
+  },
+  {
+   "evolved": "다이버전스",
+   "en": "Divergence",
+   "weapons": [
+    "헤카톤 기관총"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": "섬광 기술을 익혀야 함"
+  },
+  {
+   "evolved": "히드라 캐논",
+   "en": "Hydra Cannon",
+   "weapons": [
+    "슈퍼 미사일"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": "섬광 기술을 익혀야 함"
+  },
+  {
+   "evolved": "하이페리온 바주카포",
+   "en": "Hyperion Bazooka",
+   "weapons": [
+    "히드라 캐논"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": "섬광 기술을 익혀야 함"
+  },
+  {
+   "evolved": "펜드래곤",
+   "en": "Pendragon",
+   "weapons": [
+    "이글 건"
+   ],
+   "needs": [
+    "시금치"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": "섬광 기술을 익혀야 함"
+  },
+  {
+   "evolved": "제트스트림",
+   "en": "Jetstream",
+   "weapons": [
+    "쿠쿠리"
+   ],
+   "needs": [
+    "파마산 보호구"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": "섬광 기술을 익혀야 함"
+  },
+  {
+   "evolved": "게카비진",
+   "en": "Gekkabijin",
+   "weapons": [
+    "트윈 드래곤"
+   ],
+   "needs": [
+    "카로마의 마나"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": "섬광 기술을 익혀야 함"
+  },
+  {
+   "evolved": "호크윈드",
+   "en": "Falconwind",
+   "weapons": [
+    "불로바"
+   ],
+   "needs": [
+    "미치광이의 두개골"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": "섬광 기술을 익혀야 함"
+  },
+  {
+   "evolved": "피의 성배",
+   "en": "Blood Chalice",
+   "weapons": [
+    "블러드 스타"
+   ],
+   "needs": [
+    "돌가면"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": "섬광 기술을 익혀야 함"
+  },
+  {
+   "evolved": "깃털 창",
+   "en": "Feather Spear",
+   "weapons": [
+    "글레이브"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": "섬광 기술을 익혀야 함"
+  },
+  {
+   "evolved": "로헨그린",
+   "en": "Lohengrin",
+   "weapons": [
+    "깃털 창"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": "섬광 기술을 익혀야 함"
+  },
+  {
+   "evolved": "재앙의 고리",
+   "en": "Rings of Calamity",
+   "weapons": [
+    "정령 반지"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": "최대 레벨의 장신구 5개(종류 무관)"
+  },
+  {
+   "evolved": "에메랄드 웨이브",
+   "en": "Emerald Wave",
+   "weapons": [
+    "에메랄드 휴거"
+   ],
+   "needs": [
+    "왕관"
+   ],
+   "needs_max": false,
+   "union": false,
+   "note": ""
+  },
+  {
+   "evolved": "나인페르노",
+   "en": "NaneInferno",
+   "weapons": [
+    "인페르놀라트로"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": "외부 방해자 혹은 내부 방해자"
+  },
+  {
+   "evolved": "캐번디시",
+   "en": "Cavendish",
+   "weapons": [
+    "그로스 미셸"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": "외부 방해자 혹은 내부 방해자"
+  },
+  {
+   "evolved": "로열 플러시",
+   "en": "Royal Flush",
+   "weapons": [
+    "피보나치 스프리츠"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": "외부 방해자 혹은 내부 방해자"
+  },
+  {
+   "evolved": "어두운 우주",
+   "en": "Negative Space",
+   "weapons": [
+    "천체 부스터"
+   ],
+   "needs": [],
+   "needs_max": false,
+   "union": false,
+   "note": "외부 방해자 혹은 내부 방해자"
+  }
+ ]
+}

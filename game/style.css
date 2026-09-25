@@ -587,3 +587,18 @@ footer code {
   vertical-align: middle;
   margin-right: 4px;
 }
+
+/* 제목이 위, 입력칸이 아래로 오는 라벨 */
+.vs-block {
+  display: block;
+  margin-top: 10px;
+}
+
+/* 폰 연결 코드: 멀리서도 읽히게 크게 */
+.vs-code {
+  font-size: 40px;
+  letter-spacing: 8px;
+  font-weight: 700;
+  color: var(--accent, #ffd479);
+  margin: 4px 0;
+}

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="referrer" content="no-referrer" />
+<meta name="theme-color" content="#12141b" />
+<title>몰리 보기</title>
+<!--
+  폰에서 몰리를 보는 페이지. 브릿지가 --remote 로 떠 있을 때 http://<PC 주소>:8745 로 열린다.
+  보고, 막혔으면 지시한다 (정지·시작·말). 이 페이지가 키를 직접 누르지는 않는다 —
+  지시는 PC 탭이 받아 화면을 보고 처리하고, 키는 거기서도 허용된 것만 나간다.
+  PC 브라우저 탭이 2초마다 보낸 상태를 가져다 그린다.
+-->
+<style>
+  :root {
+    --bg: #12141b;
+    --panel: #1c1f2a;
+    --line: #2b2f3d;
+    --text: #e8e8ee;
+    --muted: #9a9aab;
+    --good: #7fd858;
+    --bad: #ff7b6b;
+    --accent: #ffd479;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  main { max-width: 720px; margin: 0 auto; padding: 12px 16px 48px; }
+  h1 { font-size: 20px; margin: 4px 0 8px; }
+  h2 { font-size: 15px; color: var(--muted); font-weight: 600; margin: 20px 0 6px; }
+  p { margin: 8px 0; }
+  .muted { color: var(--muted); }
+  .bad { color: var(--bad); }
+  .good { color: var(--good); }
+
+  header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  header h1 { flex-shrink: 0; white-space: nowrap; }
+  #age { font-size: 13px; color: var(--muted); text-align: right; }
+  #age.stale { color: var(--bad); }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 12px; }
+  .stat { background: var(--panel); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+  .stat span { display: block; color: var(--muted); font-size: 12px; }
+  .stat b { display: block; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+  .stat.wide { grid-column: 1 / -1; }
+
+  .imgs img { width: 100%; display: block; border-radius: 10px; background: #000; margin: 8px 0; min-height: 40px; }
+  .toggle { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; margin: 4px 0; }
+  .toggle input { width: 20px; height: 20px; }
+
+  .log div { padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13px; overflow-wrap: anywhere; }
+  .log div:last-child { border-bottom: 0; }
+
+  form { display: flex; gap: 8px; margin: 16px 0; }
+
+  .hold { background: #3a1f22; color: var(--bad); border-radius: 10px; padding: 8px 10px; margin: 8px 0; font-size: 14px; }
+  .ctl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
+  .ctl button { padding: 14px; font-size: 17px; }
+  button.danger { background: var(--bad); color: #1a1a1a; }
+  button.plain { background: var(--panel); color: var(--text); border: 1px solid var(--line); font-weight: 500; }
+  .say { margin: 8px 0 4px; }
+  .say input {
+    flex: 1; min-width: 0; font-size: 16px; padding: 10px 12px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--text);
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+  .chips button { font-size: 13px; padding: 6px 10px; }
+  .cmd { font-size: 14px; margin: 4px 0 8px; overflow-wrap: anywhere; }
+  button:disabled { opacity: 0.5; }
+  input#code {
+    flex: 1; min-width: 0; font-size: 28px; letter-spacing: 6px; text-align: center;
+    padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--text);
+  }
+  button {
+    font-size: 16px; padding: 10px 18px; border-radius: 10px; border: 0;
+    background: var(--accent); color: #1a1a1a; font-weight: 700;
+  }
+</style>
+</head>
+<body>
+<main>
+  <!-- 등록 안 된 기기: 연결 코드 넣기 -->
+  <section id="pairView" hidden>
+    <h1>몰리 보기</h1>
+    <p>PC 의 몰리 페이지에서 <b>뱀서 → 폰으로 보기 → 연결 코드 만들기</b> 를 누르고, 나온 6자리를 넣으세요.</p>
+    <p class="muted">한 번 연결하면 이 폰은 계속 볼 수 있습니다. 코드는 2분 동안만 쓸 수 있습니다.</p>
+    <form id="pairForm">
+      <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}"
+             placeholder="000000" required aria-label="연결 코드 6자리" />
+      <button type="submit">연결</button>
+    </form>
+    <p id="pairMsg" class="bad" role="status"></p>
+  </section>
+
+  <!-- 등록된 기기: 몰리 상태 -->
+  <section id="liveView" hidden>
+    <header>
+      <h1>몰리</h1>
+      <span id="age" role="status">-</span>
+    </header>
+    <div class="hold" id="hold" hidden>폰에서 정지함 — 브릿지가 키를 막고 있습니다. 다시 움직이려면 시작.</div>
+
+    <!-- 지시: 정지는 브릿지에서 바로 먹고, 나머지는 PC 탭이 2초 안에 받아 처리한다 -->
+    <div class="ctl">
+      <button type="button" id="btnStop" class="danger">■ 정지</button>
+      <button type="button" id="btnStart" class="plain">▶ 시작</button>
+    </div>
+    <form id="sayForm" class="say">
+      <input id="sayText" maxlength="200" enterkeyhint="send" autocomplete="off"
+             placeholder="몰리에게 지시 — 예: 초록 버튼 눌러" aria-label="몰리에게 보낼 지시" />
+      <button type="submit">보내기</button>
+    </form>
+    <div class="chips">
+      <button type="button" class="plain" data-say="화면에 있는 초록 버튼 눌러">초록 버튼 눌러</button>
+      <button type="button" class="plain" data-say="시작 버튼 눌러">시작 버튼</button>
+      <button type="button" class="plain" data-say="확인 버튼 눌러">확인</button>
+      <button type="button" class="plain" data-say="레벨업 카드 아무거나 골라">레벨업 아무거나</button>
+    </div>
+    <div class="cmd muted" id="cmdMsg" role="status"></div>
+
+    <div class="grid" id="stats"></div>
+
+    <label class="toggle"><input type="checkbox" id="imgOn" checked /> 화면도 보기 (데이터를 씁니다)</label>
+    <div class="imgs" id="imgs">
+      <img id="view" alt="게임 화면과 몰리가 알아본 것" />
+      <img id="sight" alt="몰리 시야 — 방향별 점수" />
+    </div>
+
+    <h2>로그 (최근 것이 위)</h2>
+    <div class="log" id="log"></div>
+
+    <h2>레벨업에서 읽은 것</h2>
+    <div class="log" id="reads"></div>
+  </section>
+</main>
+
+<script>
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const EVERY = 2000;
+  let timer = null;
+  let imgBusy = false;
+  let lastCmdAt = null;
+
+  // 지시 보내기. 정지는 브릿지가 바로 키를 막는다. 나머지는 PC 탭이 받아서 처리한다.
+  async function send(kind, text) {
+    const msg = $("cmdMsg");
+    msg.className = "cmd muted";
+    msg.textContent = "보내는 중…";
+    try {
+      const r = await fetch("/command", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind, text: text || "" }),
+      });
+      const o = await r.json().catch(() => ({}));
+      if (r.status === 401) { show("pair"); return; }
+      if (!r.ok) { msg.className = "cmd bad"; msg.textContent = o.error || "보내지 못했습니다"; return; }
+      if (!o.page) {
+        msg.className = "cmd bad";
+        msg.textContent = kind === "stop"
+          ? "정지했습니다 (브릿지가 키를 막음). 다만 PC 페이지가 응답이 없습니다."
+          : "PC 페이지가 응답이 없어 전달되지 않을 수 있습니다 (1분 안에 못 받으면 버립니다).";
+      } else {
+        msg.textContent = kind === "stop" ? "정지했습니다 — 브릿지가 바로 키를 막았습니다" : "전달했습니다 — PC 가 2초 안에 받아 처리합니다";
+      }
+      tick();
+    } catch (e) {
+      msg.className = "cmd bad";
+      msg.textContent = "브릿지에 닿지 않습니다";
+    }
+  }
+
+  $("btnStop").addEventListener("click", () => send("stop"));
+  $("btnStart").addEventListener("click", () => {
+    if (confirm("PC 에서 몰리가 다시 키를 누르기 시작합니다. 시작할까요?")) send("start");
+  });
+  $("sayForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const t = $("sayText").value.trim();
+    if (!t) return;
+    $("sayText").value = "";
+    send("say", t);
+  });
+  document.querySelectorAll("[data-say]").forEach((b) =>
+    b.addEventListener("click", () => send("say", b.dataset.say))
+  );
+
+  // 사용자 설정: 화면 보기 (데이터 아끼기). 저장이 안 되는 브라우저도 있어서 감싼다.
+  try { $("imgOn").checked = localStorage.getItem("molli.remote.img") !== "0"; } catch (e) {}
+  $("imgOn").addEventListener("change", () => {
+    try { localStorage.setItem("molli.remote.img", $("imgOn").checked ? "1" : "0"); } catch (e) {}
+    $("imgs").hidden = !$("imgOn").checked;
+  });
+  $("imgs").hidden = !$("imgOn").checked;
+
+  function show(which) {
+    $("pairView").hidden = which !== "pair";
+    $("liveView").hidden = which !== "live";
+  }
+
+  // 글자는 전부 textContent 로 넣는다. 로그에는 LLM 이 쓴 문장도 섞여 있다.
+  function fill(box, rows) {
+    box.replaceChildren(...rows.map((t) => {
+      const d = document.createElement("div");
+      d.textContent = t;
+      return d;
+    }));
+  }
+
+  function stat(label, value, wide) {
+    const d = document.createElement("div");
+    d.className = "stat" + (wide ? " wide" : "");
+    const s = document.createElement("span");
+    s.textContent = label;
+    const b = document.createElement("b");
+    b.textContent = value == null || value === "" ? "-" : String(value);
+    d.append(s, b);
+    return d;
+  }
+
+  function render(data) {
+    const st = data.state;
+    const age = data.age;
+    const ageEl = $("age");
+    $("hold").hidden = !data.hold;
+    // 지시 결과: PC 탭이 처리하고 나서 알려준다
+    if (st && st.cmdBusy) {
+      $("cmdMsg").textContent = "지시 처리 중… (화면을 읽고 있습니다)";
+      $("cmdMsg").className = "cmd muted";
+    } else if (st && st.cmd && st.cmd.at !== lastCmdAt) {
+      lastCmdAt = st.cmd.at;
+      $("cmdMsg").textContent = `${st.cmd.at} ${st.cmd.text ? "“" + st.cmd.text + "” → " : ""}${st.cmd.result}`;
+      $("cmdMsg").className = "cmd " + (st.cmd.ok ? "good" : "bad");
+    }
+    if (!st || age == null) {
+      ageEl.textContent = "PC 페이지 소식 없음";
+      ageEl.className = "stale";
+      $("stats").replaceChildren(stat("상태", "PC 에서 몰리 페이지(뱀서 탭)를 열고 브릿지에 연결하세요", true));
+      return;
+    }
+    const stale = age > 8;
+    ageEl.textContent = stale ? `${Math.round(age)}초째 소식 없음 — PC 탭이 가려졌거나 닫혔을 수 있습니다` : `${st.at} 기준`;
+    ageEl.className = stale ? "stale" : "";
+
+    $("stats").replaceChildren(
+      stat("인식한 화면", st.screen),
+      stat("조작", st.running ? "켜짐" : "꺼짐"),
+      stat("캐릭터", st.char || "모름", true),
+      stat("이번 판", st.run),
+      stat("가는 방향", st.dir),
+      stat("체력", st.hp),
+      stat("경험치", st.xp),
+      stat("적 · 젬", st.enemies == null ? "-" : `${st.enemies} · ${st.gems}`),
+      stat("입력 모드", st.live),
+      stat("게임 멈춤", st.frozen, true),
+      stat("LLM", st.llm, true),
+    );
+    fill($("log"), st.logs || []);
+    // 잘못 고를 때 원인을 밖에서도 보이게: 커서가 어디 있다고 봤는지, 어떻게 옮겼는지, 글자로 확인됐는지
+    fill($("reads"), (st.reads || []).map((r) =>
+      `${r.at} · ${(r.options || []).join(" / ") || "(못 읽음)"}` +
+        (r.picked ? " → " + r.picked : "") +
+        (r.selected ? " · 커서: " + r.selected : "") +
+        (r.nav ? " · " + r.nav : r.keys && r.keys.length ? " · 누름: " + r.keys.join(" ") : "") +
+        (r.byOcr ? " · 화면 글자로 이름 확인됨" : "") +
+        (r.why ? " — " + r.why : "")
+    ));
+  }
+
+  // 그림은 앞 그림이 다 받아진 뒤에만 다음 것을 부른다 (느린 망에서 쌓이지 않게)
+  function refreshImages() {
+    if (!$("imgOn").checked || imgBusy) return;
+    imgBusy = true;
+    const t = Date.now();
+    let left = 2;
+    const done = () => { if (--left === 0) imgBusy = false; };
+    for (const id of ["view", "sight"]) {
+      const img = $(id);
+      // 아직 그림이 없으면(폰이 막 붙어 PC 탭이 다음 번에 보냄) 깨진 그림 대신 숨긴다
+      img.onload = () => { img.hidden = false; done(); };
+      img.onerror = () => { img.hidden = true; done(); };
+      img.src = `/${id}.jpg?t=${t}`;
+    }
+  }
+
+  async function tick() {
+    try {
+      const r = await fetch("/state", { credentials: "same-origin", cache: "no-store" });
+      if (r.status === 401) { show("pair"); return; }
+      if (!r.ok) throw new Error(r.status);
+      show("live");
+      const data = await r.json();
+      render(data);
+      // PC 탭이 보내고 있을 때만 그림을 부른다 (안 보내는데 계속 부르면 데이터만 쓴다)
+      if (data.state && data.age != null && data.age < 8) refreshImages();
+    } catch (e) {
+      show("live");
+      $("age").textContent = "브릿지에 닿지 않습니다 — PC 가 켜져 있고 같은 네트워크인지 확인하세요";
+      $("age").className = "stale";
+    }
+  }
+
+  // 화면이 꺼져 있으면 부르지 않는다 (데이터·배터리)
+  function start() { if (!timer) { tick(); timer = setInterval(tick, EVERY); } }
+  function stop() { clearInterval(timer); timer = null; }
+  document.addEventListener("visibilitychange", () => (document.hidden ? stop() : start()));
+
+  $("pairForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    $("pairMsg").textContent = "";
+    try {
+      const r = await fetch("/pair", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: $("code").value.trim() }),
+      });
+      const o = await r.json().catch(() => ({}));
+      if (!r.ok) { $("pairMsg").textContent = o.error || "연결하지 못했습니다"; return; }
+      $("code").value = "";
+      stop(); start();
+    } catch (err) {
+      $("pairMsg").textContent = "브릿지에 닿지 않습니다";
+    }
+  });
+
+  start();
+</script>
+</body>
+</html>

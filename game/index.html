@@ -187,6 +187,7 @@
             <button class="vs-menu-btn" data-sec="llm">LLM</button>
             <button class="vs-menu-btn" data-sec="stats">기록 · 통계</button>
             <button class="vs-menu-btn" data-sec="tune">민감도</button>
+            <button class="vs-menu-btn" data-sec="remote">폰으로 보기</button>
             <button class="vs-menu-btn" data-sec="help">실행 방법</button>
           </nav>
 
@@ -420,6 +421,31 @@
                 위를 켜면 가르쳐준 화면이 없어도 <b>게임이 멈춘 순간</b>을 잡아 LLM에게 한 번 묻고,
                 답이 오면 그 화면을 기억해서 <b>다음부터는 묻지 않고 즉시 알아봅니다.</b>
               </div>
+
+              <h3>화면 글자 읽기 (OCR)</h3>
+              <div class="controls">
+                <label class="checkbox"><input type="checkbox" id="vsOcrOn" checked /> 화면 글자 읽기 (윈도우 내장, 빠름)</label>
+                <button id="vsOcrNow">지금 화면 글자 읽기</button>
+              </div>
+              <div class="vs-help" id="vsOcrResult">-</div>
+              <div class="vs-help">
+                윈도우에 들어 있는 글자 인식을 브릿지가 대신 부릅니다. 설치할 것이 없고 한 장에 0.2초 안쪽입니다.
+                LLM 과 달리 <b>없는 글자를 지어내지 않습니다</b> — 못 읽으면 빈칸입니다. 이렇게 씁니다:
+                <br />· <b>화면 판별</b> — 아래 글자가 보이면 LLM 에게 묻기 전에 그 화면으로 봅니다.
+                "플레이 중" 이라도 카메라가 1초 넘게 멈춰 있으면 글자를 확인합니다 (타이틀 화면을 놓치지 않게).
+                <br />· <b>메뉴</b> — 읽은 글자를 LLM 에게 같이 줘서 시작 버튼 같은 항목을 빠뜨리지 않게 합니다.
+                <br />· <b>레벨업</b> — LLM 이 읽은 카드 이름이 화면 글자에 실제로 있는지 맞춰봅니다.
+                전부 있으면 두 번 읽지 않고 바로 고릅니다.
+                <br />게임 화면 위에 읽은 글자가 하늘색 상자로 잠깐 보입니다.
+                <b>사진으로 시험</b>(레벨업 읽은 것 메뉴)에 아무 화면이나 넣으면 무슨 화면으로 보는지 나옵니다.
+              </div>
+              <label class="vs-block">글자로 화면 알아보기
+                <textarea id="vsOcrWords" rows="5" class="vs-goal"></textarea></label>
+              <div class="vs-help">
+                한 줄에 한 화면: <code>화면: 글자, 글자</code>. 위에 있는 줄부터 봅니다.
+                띄어쓰기·대소문자는 무시하고, 조금 틀려도 맞춥니다.
+                화면 이름은 levelup · menu · dead · chest · revive, 직접 만든 화면 종류도 됩니다.
+              </div>
             </div>
 
             <!-- ── 기록 · 통계 ───────────────────────────── -->
@@ -496,6 +522,30 @@
             </div>
 
             <!-- ── 실행 방법 ─────────────────────────────── -->
+            <!-- ── 폰으로 보기 ───────────────────────────── -->
+            <div class="vs-sec" data-sec="remote">
+              <h3>폰으로 보기</h3>
+              <div class="vs-help">
+                이 탭에서 도는 몰리를 <b>폰에서 보고, 막혔으면 지시합니다</b> — 정지·시작 버튼과 말로 하는 지시
+                ("화면에 있는 초록 버튼 눌러"). 지시는 이 탭이 받아 화면을 보고 처리하고,
+                키는 여기서도 허용된 것만 나갑니다 (ESC·마우스 없음).
+                폰이 이 페이지를 그냥 열면 빈 페이지입니다 — 화면 공유와 몰리의 상태는 이 탭 안에만 있어서,
+                이 탭이 2초마다 상태를 브릿지로 보내고 폰은 브릿지가 여는 페이지에서 봅니다.
+                <br />아무나 못 봅니다. 아래 <b>연결 코드</b>를 폰에서 한 번 넣은 기기만 볼 수 있고,
+                코드는 2분 동안 한 번만 쓸 수 있습니다. 잃어버린 폰이 있으면 <b>모두 끊기</b>.
+              </div>
+              <div class="controls">
+                <button id="vsRemoteCode">연결 코드 만들기</button>
+                <button id="vsRemoteRevoke">연결한 기기 모두 끊기</button>
+              </div>
+              <div class="vs-help" id="vsRemoteState">브릿지에 연결되면 확인할 수 있습니다</div>
+              <div class="vs-help vs-note">
+                브릿지를 <code>.\start.ps1 -Remote</code> 로 띄워야 켜집니다 (기본은 꺼져 있음).
+                폰은 PC 와 <b>같은 와이파이</b>에 있어야 합니다. 처음 켤 때 윈도우 방화벽이 파이썬의 네트워크
+                접근을 물어보면 허용해야 폰이 닿습니다. 이 탭이 가려지면 브라우저가 느려져 폰 화면도 늦게 바뀝니다.
+              </div>
+            </div>
+
             <div class="vs-sec" data-sec="help">
               <h3>실행 순서</h3>
               <div class="vs-help">

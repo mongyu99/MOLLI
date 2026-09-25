@@ -126,7 +126,7 @@
     "vsBlindMode", "vsBlindStats", "vsProbeBtn", "vsProbeResult",
     "vsSight", "vsSightTable", "vsSightWhy", "vsEnemyMode", "vsMoveThr", "vsMoveThrVal", "vsDemoPause", "vsNavKeys",
     "vsRegionForm", "vsRegionLabel", "vsRegionScope", "vsRegionAsk", "vsRegionSave",
-    "vsRegionCancel", "vsRegionState", "vsRegionList", "vsUiBlue", "vsUiThr", "vsUiThrVal", "vsUiColor", "vsUiLearn", "vsUiForget",
+    "vsRegionCancel", "vsRegionState", "vsRegionList", "vsUiBlue", "vsUiThr", "vsUiThrVal", "vsUiColor", "vsUiLearn", "vsUiForget", "vsOcrOn", "vsOcrNow", "vsOcrResult", "vsOcrWords", "vsRemoteCode", "vsRemoteRevoke", "vsRemoteState",
   ].forEach((id) => (el[id] = document.getElementById(id)));
 
   const logger = createLogger("vsLog", { max: 60 });
@@ -368,7 +368,7 @@
   //  3) 카메라가 멈췄는가 — 창이 떠 있으면 게임이 멈춰 카메라도 안 움직인다 (판단하는 쪽에서 본다).
   let uiColor = load("uiColor", null); // [r, g, b] — 기억한 창 색
   let learnColorAsk = null;            // "auto" | "manual" — 다음 프레임에서 창 색을 배운다
-  const UI_TOL = 48;    // 기억한 창 색과 세 채널 차이 합이 이 미만이면 같은 색
+  const UI_TOL = 60;    // 기억한 창 색과 세 채널 차이 합이 이 미만이면 같은 색 (창 안의 조금 밝은 칸까지)
   const UI_FLAT = 8;    // 칸 안 파란 점들이 평균에서 채널당 이만큼 이내로 모여 있어야 평평한 판
 
   const colorGap = (r, g, b, c) => Math.abs(r - c[0]) + Math.abs(g - c[1]) + Math.abs(b - c[2]);
@@ -446,8 +446,9 @@
       : "아직 없음 — 파란 계열이면 다 창 후보로 봄 (레벨업 창을 한 번 읽으면 자동으로 배웁니다)";
   }
 
-  // 창 색 배우기: 확인 영역에서 평평한 칸들의 색을 모아 가장 많은 색을 고른다.
-  // 파랑인지 따지지 않는다 — 창 색이 생각보다 보라에 가깝거나 어두워도 배울 수 있게.
+  // 창 색 배우기: 확인 영역에서 평평한 파란 칸들의 색을 모아 가장 많은 색을 고른다.
+  // 파랑으로 한정한다. 창 뒤에 어둡게 깔린 배경도 평평해서, 한정하지 않으면 창보다 넓은
+  // 그 배경색을 배워버린다 (테스트 영상에서 실제로 그랬다).
   function learnPanelColor(px) {
     const rc = uiCheckRect();
     const x0 = Math.max(0, Math.round(rc.x * AW)), x1 = Math.min(AW, Math.round((rc.x + rc.w) * AW));
@@ -473,7 +474,7 @@
           }
         }
         if (dev / (m * 3) > UI_FLAT) continue;       // 무늬가 있는 칸은 창 바탕이 아니다
-        if ((mr + mg + mb) / 3 < 25) continue;        // 거의 검정 (어둡게 깔린 배경)
+        if (!isUiBlue(mr, mg, mb)) continue;          // 파란 판만 (어둡게 깔린 배경은 아니다)
         const key = `${(mr / 24) | 0},${(mg / 24) | 0},${(mb / 24) | 0}`;
         const e = bins.get(key) || { n: 0, r: 0, g: 0, b: 0 };
         e.n++; e.r += mr; e.g += mg; e.b += mb;
@@ -482,7 +483,7 @@
     }
     let best = null;
     for (const e of bins.values()) if (!best || e.n > best.n) best = e;
-    if (!best || best.n < cells * 0.15) return null; // 한 색이 넓게 깔려 있지 않으면 창이 아니다
+    if (!best || best.n < cells * 0.08) return null; // 한 색이 넓게 깔려 있지 않으면 창이 아니다
     return [Math.round(best.r / best.n), Math.round(best.g / best.n), Math.round(best.b / best.n)];
   }
 
@@ -614,6 +615,10 @@
             return;
           }
           if (m.live !== undefined) el.vsLive.textContent = m.live ? "실제 입력" : "안전모드";
+          if (m.remote !== undefined) {
+            remoteOn = !!m.remote;
+            renderRemote();
+          }
         } catch (e) {}
       };
       ws.onclose = () => {
@@ -654,24 +659,164 @@
     });
   }
 
+  // ---- 글자 읽기 (윈도우 내장 OCR — 브릿지가 대신 부른다) ----
+  // LLM 은 글자를 지어낼 때가 있다 ("마나의 노래" 를 "슈퍼 소울" 로 읽었다). OCR 은 못 읽으면
+  // 빈칸일 뿐 없는 글자를 만들지 않고, 한 장에 0.2초 안쪽이다.
+  // 작은 글씨는 못 읽어서 2배로 키워 보낸다 — 재보니 1배에서는 레벨업 버튼 셋 중 둘을 놓쳤고
+  // 2배에서는 다 읽었다. 3배는 오히려 나빴다.
+  const OCR_SCALE = 2;
+  const OCR_MAX_SIDE = 2560;
+  let lastOcr = null;        // { lines, at, test, match } — 화면에 그리고 시야에 보여주려고 남긴다
+  const ocrWarned = new Set();
+
+  // rect: 화면 전체 기준 0~1 영역 (없으면 전체). bitmap: 사진 시험용 이미지 (없으면 화면 공유).
+  // 돌려주는 줄 좌표도 화면 전체 기준 0~1 이다.
+  async function ocrRead(rect, bitmap) {
+    if (!el.vsOcrOn.checked) return null;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return null;
+    const vw = bitmap ? bitmap.width : video.videoWidth;
+    const vh = bitmap ? bitmap.height : video.videoHeight;
+    if (!vw) return null;
+    const r = rect || { x: 0, y: 0, w: 1, h: 1 };
+    const sw = r.w * vw, sh = r.h * vh;
+    const scale = Math.min(OCR_SCALE, OCR_MAX_SIDE / Math.max(sw, sh));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(sw * scale));
+    c.height = Math.max(1, Math.round(sh * scale));
+    const g = c.getContext("2d");
+    g.imageSmoothingQuality = "high";
+    g.drawImage(bitmap || video, r.x * vw, r.y * vh, sw, sh, 0, 0, c.width, c.height);
+    const res = await askBridge({ type: "ocr", image: c.toDataURL("image/jpeg", 0.95).split(",")[1] }, 20000);
+    if (res.error) {
+      // 브릿지를 예전 것으로 띄웠거나 윈도우가 아니면 여기로 온다. 한 번만 알린다.
+      if (!ocrWarned.has(res.error)) {
+        ocrWarned.add(res.error);
+        logger.push(
+          `<span class="bad">글자 읽기(OCR) 실패: ${res.error}</span> ` +
+            '<span class="dim">— 브릿지를 새로 띄웠는지 확인하세요. 그동안은 LLM 만 씁니다.</span>'
+        );
+      }
+      return null;
+    }
+    const lines = (res.lines || [])
+      .map((l) => ({
+        text: String(l.text || "").trim(),
+        x: r.x + (l.x / c.width) * r.w,
+        y: r.y + (l.y / c.height) * r.h,
+        w: (l.w / c.width) * r.w,
+        h: (l.h / c.height) * r.h,
+      }))
+      .filter((l) => l.text)
+      .sort((a, b) => a.y - b.y || a.x - b.x);
+    lastOcr = { lines, at: performance.now(), test: !!bitmap, match: ocrMatch(lines), ms: res.ms || 0 };
+    return lastOcr;
+  }
+
+  // 띄어쓰기와 대소문자는 OCR 이 자주 틀린다 ("컬렉 션"). 비교할 때는 뺀다.
+  const ocrNorm = (t) => String(t || "").replace(/\s+/g, "").toUpperCase();
+
+  // LLM 이 읽은 이름이 OCR 글자 중에 있나. 한 줄에 다른 글자가 붙어 읽힐 수 있어
+  // ("마늘 새로운!") 포함도 인정한다.
+  function ocrFind(name, lines) {
+    const n = ocrNorm(name);
+    if (!n || n === "?") return null;
+    let best = null, bestS = 0;
+    for (const l of lines || []) {
+      const t = ocrNorm(l.text);
+      if (n.length >= 2 && t.includes(n)) return l;
+      const sc = similar(n, t);
+      if (sc > bestS) { bestS = sc; best = l; }
+    }
+    return bestS >= SIMILAR_ENOUGH ? best : null;
+  }
+
+  // LLM 에게 "화면에서 이런 글자가 실제로 읽혔다" 고 알려준다. 지어내지 말고 여기서 베끼라고.
+  function ocrBlock(lines, note) {
+    if (!lines || !lines.length) return "";
+    return (
+      "\nText an OCR engine read on this screen, top to bottom (exact spelling; it can miss " +
+      "some text or have small typos):\n" +
+      lines.map((l) => "- " + l.text).join("\n") +
+      "\n" + (note || "") + "\n"
+    );
+  }
+
+  // 화면에 이 글자가 보이면 그 화면이다. 위에 있는 줄부터 본다 — 레벨업이 제일 확실하고,
+  // "시작" 같은 흔한 글자는 결과 화면("다시 시작")에도 나올 수 있어 메뉴를 맨 아래에 둔다.
+  const OCR_WORDS_DEFAULT = [
+    "levelup: 레벨 업, LEVEL UP",
+    "revive: 부활, REVIVE",
+    "chest: 보물, TREASURE",
+    "dead: 게임 오버, GAME OVER, 결과, RESULTS, 생존 시간",
+    "menu: 시작, START, 캐릭터 선택, 스테이지, STAGE, 파워업, POWER UP, 컬렉션, COLLECTION",
+  ].join("\n");
+
+  function ocrWords() {
+    const out = [];
+    for (const raw of String(el.vsOcrWords?.value ?? OCR_WORDS_DEFAULT).split("\n")) {
+      const m = raw.match(/^\s*([\w-]+)\s*:(.*)$/);
+      if (!m || !STATES[m[1]]) continue;
+      const words = m[2].split(",").map((w) => w.trim()).filter(Boolean);
+      if (words.length) out.push([m[1], words]);
+    }
+    return out;
+  }
+
+  function ocrMatch(lines) {
+    if (!lines || !lines.length) return null;
+    const texts = lines.map((l) => ocrNorm(l.text));
+    for (const [state, words] of ocrWords()) {
+      for (const w of words) {
+        const nw = ocrNorm(w);
+        const i = texts.findIndex((t) => t.includes(nw) || (nw.length >= 3 && similar(t, nw) >= 0.75));
+        if (i >= 0) return { state, word: w, text: lines[i].text };
+      }
+    }
+    return null;
+  }
+
+  function showOcr(o, where) {
+    if (!o) {
+      el.vsOcrResult.textContent = "글자를 읽지 못했습니다 (브릿지 연결과 OCR 켜짐을 확인하세요)";
+      return;
+    }
+    const list = o.lines.map((l) => l.text).join(" / ") || "(글자 없음)";
+    el.vsOcrResult.innerHTML =
+      `<b>${where}</b> ${o.ms}ms — ${list}<br />` +
+      (o.match
+        ? `→ <span class="good">${STATES[o.match.state]}</span> 화면 ("${o.match.text}" 이 보임)`
+        : '→ <span class="dim">아래 목록에 있는 글자가 없어 화면 종류는 모름</span>');
+  }
+
   // ---- 사진 한 장으로 레벨업 읽기를 시험한다 ----
   // 게임을 돌리면서 고치려면 한 번 확인하는 데 한 판이 걸린다. 스크린샷을 바로 넣어
   // 무엇을 읽는지 보면, 이름을 잘못 읽는지 아예 못 읽는지가 즉시 드러난다.
   async function runImageTest(blobOrFile) {
-    if (!el.vsModel.value) {
-      el.vsTestState.textContent = "모델을 먼저 고르세요";
-      return;
-    }
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       if (!(await connectBridge())) {
         el.vsTestState.textContent = "브릿지에 연결하지 못했습니다";
         return;
       }
     }
-    el.vsTestState.textContent = "읽는 중...";
+    const bitmap = await createImageBitmap(blobOrFile);
+
+    // 글자부터 읽는다 — 빠르고, 이게 무슨 화면인지도 여기서 나온다
+    el.vsTestState.textContent = "글자 읽는 중...";
+    const ocr = await ocrRead(null, bitmap);
+    showOcr(ocr, "사진");
+    if (ocr?.match && ocr.match.state !== "levelup") {
+      el.vsTestState.textContent =
+        `${STATES[ocr.match.state]} 화면으로 보입니다 ("${ocr.match.text}" 이 보임) — 레벨업 읽기는 건너뜀. ` +
+        `읽은 글자: ${ocr.lines.map((l) => l.text).join(" / ")}`;
+      return;
+    }
+    if (!el.vsModel.value) {
+      el.vsTestState.textContent = "모델을 먼저 고르세요";
+      return;
+    }
+    el.vsTestState.textContent = "카드 읽는 중...";
 
     // 게임에서 보내는 것과 같은 조건으로 맞춘다 (같은 최대 크기, 같은 품질)
-    const bitmap = await createImageBitmap(blobOrFile);
     const scale = Math.min(1, LEVELUP_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
     const c = document.createElement("canvas");
     c.width = Math.max(1, Math.round(bitmap.width * scale));
@@ -681,6 +826,7 @@
       b64: c.toDataURL("image/jpeg", 0.9).split(",")[1],
       w: c.width,
       h: c.height,
+      ocr, // 방금 읽은 글자 — 카드 이름을 맞춰보는 데 쓴다
     };
 
     const nCards = Math.max(2, Math.min(5, Number(el.vsCards.value)));
@@ -1726,6 +1872,7 @@ Answer with ONLY a JSON object, nothing else:
   // 아래 표: 방향마다 위협·탈출여지·젬·최종점수를 숫자로.
   let lastTaken = null; // 실제로 누른 방향 (블라인드면 화면과 무관)
   let lastWorldFrozen = false;
+  let frozeAt = 0; // 마지막으로 멈춘 순간
   let lastFrozenWhy = "";
   const frozenText = () => (lastWorldFrozen ? "예 (" + lastFrozenWhy + ")" : "아니오");
   let lastTakenBlind = false;
@@ -1860,6 +2007,14 @@ Answer with ONLY a JSON object, nothing else:
         ? `<br /><span class="dim">이 화면에서 LLM 에게 알려주는 영역: ${
             regionsNow(stableState).map((r) => r.label).join(", ") || "없음"
           }</span>`
+        : "") +
+      (lastOcr && !lastOcr.test
+        ? `<br /><span class="dim">화면 글자(OCR, ${((performance.now() - lastOcr.at) / 1000).toFixed(0)}초 전): ` +
+          `${lastOcr.lines.map((l) => l.text).slice(0, 8).join(" · ") || "(없음)"} → ` +
+          (lastOcr.match
+            ? "<b>" + STATES[lastOcr.match.state] + '</b> ("' + lastOcr.match.text + '")'
+            : "아는 화면 글자 없음") +
+          "</span>"
         : "") +
       `<br /><span class="dim">게임 멈춤: <b>${frozenText()}</b>` +
       (el.vsUiBlue.checked
@@ -2026,11 +2181,29 @@ Answer with ONLY a JSON object, nothing else:
     if (state === "levelup") {
       const nCards = Math.max(2, Math.min(5, Number(el.vsCards.value)));
       const choice = await llmPickCard(nCards);
-      llmBusy = false;
       if (choice && !uiColor) learnColorAsk = "auto"; // 레벨업 창이 확실히 떠 있는 순간이다
 
       if (!choice) {
+        llmBusy = false;
         el.vsLlmState.textContent = "실패 — 누르지 않고 대기";
+        return;
+      }
+
+      // 예전에는 "커서가 몇 번째 카드에 있다" 를 한 번 읽고 이동 키와 엔터를 한꺼번에 눌렀다.
+      // 커서 위치를 한 칸만 잘못 읽어도, 또는 첫 입력이 커서를 잡기만 하고 움직이지 않아도
+      // 엉뚱한 카드가 확정됐다. 메뉴와 같은 길로 간다 — 옮기고, 다시 읽어 확인하고, 그때만 엔터.
+      const plan = { options: choice.options, sel: choice.si, tgt: choice.ti, layout: "vertical", columns: 1 };
+      const nav = await moveCursorTo(state, plan, () => running, () => llmSeeLevel(nCards));
+      llmBusy = false;
+      const path = nav.trail.length ? nav.trail.join(" → ") : `이미 ${choice.item} 위`;
+      noteReadNav(choice.item, nav, path);
+
+      if (!nav.reached) {
+        el.vsLlmState.textContent = "커서를 못 옮김 — 엔터 안 누름";
+        logger.push(
+          `<span class="tag">레벨업</span> <span class="bad">"${choice.item}" 로 못 옮겨서 엔터를 누르지 않았습니다</span> ` +
+            `<span class="dim">[읽음: ${choice.options.join(" / ")}] [${path}]</span>`
+        );
         return;
       }
       el.vsLlmState.textContent = `${choice.item} (${(choice.took || 0).toFixed(1)}초)`;
@@ -2040,12 +2213,25 @@ Answer with ONLY a JSON object, nothing else:
       logger.push(
         `<span class="tag">레벨업</span> <span class="pick">${choice.item}</span> ` +
           `<span class="dim">[읽음: ${choice.options.join(" / ")}]</span> ` +
-          `<span class="dim">[${choice.from} → ${choice.item} · ${choice.keys.join(" ")}] </span>` +
+          `<span class="dim">[${path} → 엔터] </span>` +
           `<span class="dim">${choice.why}</span>`
       );
-      const before = lastThumb; // 누르기 직전 화면 — 넘어갔는지를 이것과 비교한다
-      await tapSequence(choice.keys);
-      pendingMenu = { state, keys: choice.keys, at: performance.now(), before };
+      const before = lastThumb; // 엔터 직전 화면 — 넘어갔는지를 이것과 비교한다
+      await tapSequence(["enter"]);
+      llmBusy = true; // 확정 버튼으로 옮기는 동안 다른 판단이 끼어들지 않게
+      const conf = await confirmIfNeeded(state, choice.item, () => running, before);
+      llmBusy = false;
+      if (conf.needed) {
+        logger.push(
+          `<span class="tag">레벨업</span> ` +
+            (conf.pressed
+              ? `<span class="pick">"${conf.button}" 로 확정</span>`
+              : `<span class="bad">"${conf.button}" 로 못 옮겨 확정하지 못했습니다</span>`) +
+            ` <span class="dim">[${conf.path}]</span>`
+        );
+        noteReadConfirm(choice.item, conf);
+      }
+      pendingMenu = { state, keys: [...nav.moved, "enter", ...(conf.moved || [])], at: performance.now(), before };
       return;
     }
 
@@ -2084,45 +2270,9 @@ Answer with ONLY a JSON object, nothing else:
     }
 
     const target = plan.options[plan.tgt];
-    const trail = []; // 무엇을 보고 어떻게 옮겼는지. 로그에 그대로 남긴다
-    const moved = [];
-    let cur = plan;
-    let tgt = plan.tgt;
-    for (let round = 0; cur.sel !== tgt; round++) {
-      if (round >= MENU_ROUNDS || !running) break;
-      const keys = moveKeys(cur.sel, tgt, cur.layout, cur.columns);
-      const grid = cur.layout === "grid" ? ` ${cur.columns}칸 격자` : "";
-      trail.push(`${cur.options[cur.sel]}에서 ${keys.join(" ")}${grid}`);
-      const beforeMove = lastThumb;
-      el.vsLlmState.textContent = `옮기는 중 (${keys.join(" ")})`;
-      await tapSequence(keys);
-      moved.push(...keys);
-      await new Promise((r) => setTimeout(r, 450)); // 커서가 옮겨 그려질 시간
-      const diff = beforeMove && lastThumb ? thumbDist(beforeMove, lastThumb) : 0;
-
-      el.vsLlmState.textContent = "옮긴 뒤 다시 읽는 중...";
-      const again = await llmSee(state, el.vsModel.value);
-      if (!again) break;
-      const t2 = indexOfOption(again.options, target);
-      if (t2 < 0) {
-        trail.push(`다시 읽으니 "${target}" 가 목록에 없음`);
-        cur = null;
-        break;
-      }
-      if (again.sel === cur.sel && again.options[again.sel] === cur.options[cur.sel]) {
-        trail.push(
-          `커서가 그대로 ${again.options[again.sel]} (화면 차이 ${diff.toFixed(3)}` +
-            (diff < 0.002 ? " — 이동 키가 안 먹은 듯" : " — 화면은 바뀜, 커서 위치를 잘못 읽는 듯") + ")"
-        );
-        cur = null;
-        break;
-      }
-      cur = again;
-      tgt = t2;
-    }
+    const { reached, trail, moved } = await moveCursorTo(state, plan, () => running);
     llmBusy = false;
 
-    const reached = cur && cur.sel === tgt;
     stuckLogged = false;
     menuTries.push({ state, options: plan.options, target, at: performance.now() });
     const path = trail.length ? trail.join(" → ") : `이미 ${target} 위`;
@@ -2140,10 +2290,351 @@ Answer with ONLY a JSON object, nothing else:
       `<span class="tag">${STATES[state] || state}</span> <span class="pick">${target}</span> ` +
         `<span class="dim">[${path} → 엔터] ${plan.note ? plan.note + " · " : ""}${plan.why}</span>`
     );
+    await noteCharacter(target); // 캐릭터를 고르는 거면 기억한다 (시작 무기를 레벨업 공략에 쓴다)
     // 넘어갔는지는 엔터 직전 화면과 비교한다. 커서를 옮기며 바뀐 것은 넘어간 게 아니다.
     const before = lastThumb;
     await tapSequence(["enter"]);
-    pendingMenu = { state, keys: [...moved, "enter"], at: performance.now(), before };
+    // 캐릭터 선택처럼 "고르고 → 확인" 하는 화면이면 확인 버튼까지 누른다
+    llmBusy = true;
+    const conf = await confirmIfNeeded(state, target, () => running, before);
+    llmBusy = false;
+    if (conf.needed) {
+      logger.push(
+        `<span class="tag">${STATES[state] || state}</span> ` +
+          (conf.pressed
+            ? `<span class="pick">"${conf.button}" 로 확정</span>`
+            : `<span class="bad">"${conf.button}" 로 못 옮겨 확정하지 못했습니다</span>`) +
+          ` <span class="dim">[${conf.path}]</span>`
+      );
+    }
+    pendingMenu = { state, keys: [...moved, "enter", ...(conf.moved || [])], at: performance.now(), before };
+  }
+
+  // 커서를 plan.tgt 항목까지 옮긴다. 옮길 때마다 화면을 다시 읽어 커서가 정말 거기 섰는지 본다.
+  // 엔터는 누르지 않는다 — 도착했을 때만 부르는 쪽이 누른다.
+  // keepGoing: 도중에 그만둬야 하는지 (자동 조작이면 '조작 중인가', 폰 지시면 '지시를 하는 중인가')
+  // see: 옮긴 뒤 화면을 다시 읽는 방법 (없으면 메뉴 읽기). 레벨업은 카드만 읽는 걸 넘긴다.
+  async function moveCursorTo(state, plan, keepGoing, see) {
+    const target = plan.options[plan.tgt];
+    const trail = []; // 무엇을 보고 어떻게 옮겼는지. 로그에 그대로 남긴다
+    const moved = [];
+    let cur = plan;
+    let tgt = plan.tgt;
+    let still = 0; // 눌렀는데 커서가 그대로였던 횟수
+    for (let round = 0; cur.sel !== tgt; round++) {
+      if (round >= MENU_ROUNDS || !keepGoing()) break;
+      const keys = moveKeys(cur.sel, tgt, cur.layout, cur.columns);
+      const grid = cur.layout === "grid" ? ` ${cur.columns}칸 격자` : "";
+      trail.push(`${cur.options[cur.sel]}에서 ${keys.join(" ")}${grid}`);
+      const beforeMove = lastThumb;
+      el.vsLlmState.textContent = `옮기는 중 (${keys.join(" ")})`;
+      await tapSequence(keys);
+      moved.push(...keys);
+      await new Promise((r) => setTimeout(r, 450)); // 커서가 옮겨 그려질 시간
+      const diff = beforeMove && lastThumb ? thumbDist(beforeMove, lastThumb) : 0;
+
+      el.vsLlmState.textContent = "옮긴 뒤 다시 읽는 중...";
+      const again = see ? await see() : await llmSee(state, el.vsModel.value);
+      if (!again) break;
+      const t2 = indexOfOption(again.options, target);
+      if (t2 < 0) {
+        trail.push(`다시 읽으니 "${target}" 가 목록에 없음`);
+        cur = null;
+        break;
+      }
+      if (again.sel === cur.sel && again.options[again.sel] === cur.options[cur.sel]) {
+        trail.push(
+          `커서가 그대로 ${again.options[again.sel]} (화면 차이 ${diff.toFixed(3)}` +
+            (diff < 0.002 ? " — 이동 키가 안 먹은 듯" : " — 화면은 바뀜, 커서 위치를 잘못 읽는 듯") + ")"
+        );
+        // 첫 입력은 커서를 잡기만 하고 움직이지 않는 화면이 있다. 한 번은 더 눌러 본다.
+        if (++still >= 2) {
+          cur = null;
+          break;
+        }
+        continue;
+      }
+      still = 0;
+      cur = again;
+      tgt = t2;
+    }
+    return { reached: !!cur && cur.sel === tgt, trail, moved };
+  }
+
+  // 레벨업 화면을 다시 읽는다 (커서를 옮긴 뒤 확인용). 카드만 — 버튼은 목록에 넣지 않는다.
+  async function llmSeeLevel(nCards) {
+    const crop = cropRegion(cardRect || gameRect, LEVELUP_MAX_SIDE);
+    if (!crop) return null;
+    const ocr = await ocrRead(cardRect || gameRect);
+    const res = await askBridge(
+      {
+        type: "llm_ask", model: el.vsModel.value, timeout: 40, image: crop.b64,
+        prompt: buildSeeLevelPrompt(nCards, ocr?.lines),
+      },
+      45000
+    );
+    if (res.error) return null;
+    const seen = parseJson(res.text);
+    const options = (Array.isArray(seen?.options) ? seen.options : [])
+      .map((x) => String(x || "").trim().slice(0, 24))
+      .filter(Boolean);
+    const sel = indexOfOption(options, seen?.selected);
+    if (!options.length || sel < 0) return null;
+    return { options, sel, layout: "vertical", columns: 1 };
+  }
+
+  function noteReadConfirm(item, conf) {
+    const r = readLog[readLog.length - 1];
+    if (!r || r.picked !== item) return;
+    r.nav = (r.nav || "") + confirmNote(conf);
+    r.keys = [...(r.keys || []), ...(conf.moved || [])];
+    save("readLog", readLog);
+    renderReadLog();
+  }
+
+  // 레벨업에서 읽은 기록에 실제로 어떻게 옮겼고 무엇을 눌렀는지 붙인다
+  function noteReadNav(item, nav, path) {
+    const r = readLog[readLog.length - 1];
+    if (!r || r.picked !== item) return;
+    r.keys = nav.reached ? [...nav.moved, "enter"] : nav.moved;
+    r.nav = path + (nav.reached ? " → 엔터" : " — 못 옮겨서 엔터 안 누름");
+    save("readLog", readLog);
+    renderReadLog();
+  }
+
+  // ---- 고르고 나서 한 번 더 확정하는 화면 ----
+  // 레벨업은 카드에서 엔터를 누르면 "골라 둔" 상태가 될 뿐이고, 아래 "획득하기" 로 커서를 옮겨
+  // 엔터를 한 번 더 눌러야 확정된다. 예전에는 카드에서 엔터만 누르고 끝나서 화면이 그대로 멈춰 있었다.
+  // 엔터 뒤에도 같은 화면이고 화면 글자에 확정 버튼이 보이면, 그리로 옮겨 한 번 더 누른다.
+  const CONFIRM_WORDS = ["획득하기", "획득", "확인", "선택하기", "OBTAIN", "ACQUIRE", "CONFIRM", "TAKE"];
+  const CONFIRM_STEPS = 6;
+
+  function findConfirm(lines, chosen) {
+    for (const w of CONFIRM_WORDS) {
+      const nw = ocrNorm(w);
+      const hit = (lines || []).find((l) => {
+        const t = ocrNorm(l.text);
+        // 방금 고른 게 확정 버튼 자신이면 (예: "확인" 을 눌렀다) 또 누를 게 아니다
+        return t && (t === nw || (t.length <= nw.length + 3 && t.includes(nw))) && similar(t, ocrNorm(chosen)) < 0.8;
+      });
+      if (hit) return hit;
+    }
+    return null;
+  }
+
+  // 화면 글자의 위치로 방향을 잡아 target 글자까지 한 칸씩 옮긴다. 옮길 때마다 다시 읽어
+  // 커서가 어디 섰는지 본다. 카드 목록(세로)과 아래 버튼 줄(가로)처럼 배치가 섞여 있어도 된다.
+  async function moveToLabel(state, target, keepGoing) {
+    const trail = [], moved = [];
+    for (let step = 0; step < CONFIRM_STEPS && keepGoing(); step++) {
+      const seen = await llmSee(state, el.vsModel.value);
+      if (!seen) {
+        trail.push("화면을 못 읽음");
+        break;
+      }
+      const cur = seen.options[seen.sel];
+      const nc = ocrNorm(cur), nt = ocrNorm(target);
+      if (nc === nt || similar(nc, nt) >= SIMILAR_ENOUGH || (nt.length >= 2 && nc.includes(nt))) {
+        return { reached: true, trail, moved };
+      }
+      const b = ocrFind(target, seen.ocrLines);
+      if (!b) {
+        trail.push(`"${target}" 글자가 화면에서 사라짐`);
+        break;
+      }
+      const a = ocrFind(cur, seen.ocrLines);
+      let dir;
+      if (a) {
+        const dx = b.x + b.w / 2 - (a.x + a.w / 2);
+        const dy = b.y + b.h / 2 - (a.y + a.h / 2);
+        dir = Math.abs(dy) >= Math.abs(dx) * 0.6 ? (dy > 0 ? "down" : "up") : dx > 0 ? "right" : "left";
+      } else {
+        // 커서가 있는 곳의 글자를 못 찾으면 위아래로만 가늠한다 (버튼은 보통 카드 아래에 있다)
+        dir = b.y + b.h / 2 > 0.5 ? "down" : "up";
+      }
+      // 그 방향으로 가는 길에 있는 항목 수만큼 한 번에 누른다. 한 칸마다 다시 읽으면
+      // 카드 네 장을 지나는 데만 LLM 을 다섯 번 부른다. 지나쳤으면 다음 읽기에서 되돌아온다.
+      let n = 1;
+      if (a) {
+        const boxes = seen.options.map((o) => ocrFind(o, seen.ocrLines)).filter(Boolean);
+        const mid = (e) => [e.x + e.w / 2, e.y + e.h / 2];
+        const [ax, ay] = mid(a), [bx, by] = mid(b);
+        const between = new Set(boxes.filter((e) => {
+          if (e === a || e === b) return false;
+          const [ex, ey] = mid(e);
+          if (dir === "down") return ey > ay + 0.01 && ey < by - 0.01 && Math.abs(ex - ax) < 0.15;
+          if (dir === "up") return ey < ay - 0.01 && ey > by + 0.01 && Math.abs(ex - ax) < 0.15;
+          if (dir === "right") return ex > ax + 0.01 && ex < bx - 0.01 && Math.abs(ey - ay) < 0.05;
+          return ex < ax - 0.01 && ex > bx + 0.01 && Math.abs(ey - ay) < 0.05;
+        }));
+        n = Math.min(MAX_MOVES, 1 + between.size);
+      }
+      const keys = Array(n).fill(navKey(dir));
+      trail.push(`${cur}에서 ${keys.join(" ")}`);
+      await tapSequence(keys);
+      moved.push(...keys);
+      await new Promise((r) => setTimeout(r, 400));
+    }
+    return { reached: false, trail, moved };
+  }
+
+  // 엔터를 누른 뒤 부른다. 확정 버튼이 필요 없으면 아무것도 안 한다.
+  // before: 첫 엔터 직전 화면 — 이것과 거의 같아야 "아직 같은 화면" 이다 (다음 화면의 "확인" 을
+  // 잘못 누르지 않게).
+  async function confirmIfNeeded(state, chosen, keepGoing, before) {
+    await new Promise((r) => setTimeout(r, 500)); // 고른 표시·버튼이 그려질 시간
+    if (before && lastThumb && thumbDist(before, lastThumb) > MATCH_THRESHOLD) return { needed: false };
+    const ocr = await ocrRead(gameRect);
+    const btn = findConfirm(ocr?.lines, chosen);
+    if (!btn) return { needed: false };
+    el.vsLlmState.textContent = `"${btn.text}" 로 옮기는 중`;
+    const nav = await moveToLabel(state, btn.text, keepGoing);
+    const path = nav.trail.length ? nav.trail.join(" → ") : `이미 ${btn.text} 위`;
+    if (!nav.reached) return { needed: true, pressed: false, button: btn.text, path, moved: nav.moved };
+    await tapSequence(["enter"]);
+    return { needed: true, pressed: true, button: btn.text, path, moved: [...nav.moved, "enter"] };
+  }
+
+  function confirmNote(conf) {
+    if (!conf.needed) return "";
+    return conf.pressed
+      ? ` → 확정 "${conf.button}" [${conf.path} → 엔터]`
+      : ` → 확정 "${conf.button}" 로 못 옮김 [${conf.path}]`;
+  }
+
+  // ---- 폰에서 온 지시 ----
+  // 밖에서 폰으로 보다가 막혀 있으면 말로 시킨다: "중단해", "화면에 있는 초록 버튼 눌러".
+  // LLM 이 지금 화면(그림 + 화면 글자)을 보고 할 일 하나를 고르고, 실제로 누르는 건 코드가 한다.
+  // 버튼을 고르는 경우엔 메뉴와 같은 길 — 커서를 옮기고, 다시 읽어 확인하고, 그때만 엔터.
+  // 누를 수 있는 키는 여전히 목록 안의 것뿐이다 (ESC 없음, 마우스 없음).
+  let remoteBusy = false;
+  let remoteCmdStatus = null; // { at, text, result, ok } — 폰에 보여준다
+  // 폰에서 온 글자를 로그(innerHTML)에 넣기 전에 태그를 무력화한다
+  const QUOTE = String.fromCharCode(34); // 큰따옴표 — 그대로 쓰면 정규식 안에서 헷갈린다
+  const escHtml = (t) =>
+    String(t)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .split(QUOTE)
+      .join("&quot;");
+
+  function remoteReport(text, result, ok) {
+    remoteCmdStatus = {
+      at: new Date().toLocaleTimeString("ko-KR", { hour12: false }),
+      text, result, ok,
+    };
+    logger.push(
+      '<span class="tag">폰 지시</span> ' +
+        (text ? '"' + escHtml(text) + '" → ' : "") +
+        `<span class="${ok ? "good" : "bad"}">${escHtml(result)}</span>`
+    );
+  }
+
+  function buildCommandPrompt(text, ocrLines) {
+    return `This image is a screenshot of the game Vampire Survivors. A bot plays it.
+The bot's owner is away from the PC and sent this instruction from their phone:
+
+"${text}"
+
+Right now the bot is ${running ? "RUNNING (moving the character by itself)" : "STOPPED"}.
+The bot thinks this screen is: ${STATES[stableState] || stableState || "unknown"}.
+${ocrBlock(ocrLines)}
+Choose exactly ONE action that carries out the instruction:
+- "stop"   : stop the bot (it releases all keys and does nothing until started again)
+- "start"  : start the bot again
+- "select" : choose a button or menu entry that is visible on this screen. Put its label in
+             "target", copied exactly as printed (use the OCR spelling when it matches).
+             Words about colour or position ("the green button", "the one at the bottom")
+             refer to what you see in the image.
+- "key"    : press one key. Allowed keys only: enter, space, w, a, s, d, up, down, left, right.
+             Put it in "key".
+- "none"   : the instruction cannot be done with the actions above, or it is only a question.
+
+${KOREAN_RULE}
+
+Answer with ONLY a JSON object, nothing else:
+{"action": "select", "target": "", "key": "", "why": "<무엇을 왜 하는지 한국어로 한 문장>"}`;
+  }
+
+  async function remoteSelect(text, target) {
+    const state = stableState && stableState !== "play" ? stableState : "menu";
+    const seen = await llmSee(state, el.vsModel.value);
+    if (!seen) return remoteReport(text, "화면 항목을 읽지 못해 누르지 않았습니다", false);
+    let tgt = indexOfOption(seen.options, target);
+    if (tgt < 0) {
+      // 띄어쓰기·대소문자·한두 글자 차이는 같은 것으로 본다
+      let best = -1, bestS = 0;
+      seen.options.forEach((o, i) => {
+        const sc = similar(ocrNorm(o), ocrNorm(target));
+        if (sc > bestS) { bestS = sc; best = i; }
+      });
+      if (bestS >= SIMILAR_ENOUGH) tgt = best;
+    }
+    if (tgt < 0) {
+      return remoteReport(text, `"${target}" 를 화면 항목에서 못 찾았습니다 (보이는 것: ${seen.options.join(", ")})`, false);
+    }
+    const name = seen.options[tgt];
+    const nav = await moveCursorTo(state, { ...seen, tgt }, () => remoteBusy);
+    const path = nav.trail.length ? nav.trail.join(" → ") : `이미 ${name} 위`;
+    if (!nav.reached) return remoteReport(text, `"${name}" 로 커서를 못 옮겨 엔터를 누르지 않았습니다 [${path}]`, false);
+    await noteCharacter(name);
+    const before = lastThumb;
+    await tapSequence(["enter"]);
+    const conf = await confirmIfNeeded(state, name, () => remoteBusy, before);
+    remoteReport(text, `"${name}" 에서 엔터 [${path}]${confirmNote(conf)}`, !conf.needed || conf.pressed);
+  }
+
+  async function remoteSay(text) {
+    if (remoteBusy) return remoteReport(text, "앞 지시를 처리하는 중이라 건너뜀", false);
+    const model = el.vsModel.value;
+    if (!model) return remoteReport(text, "LLM 모델이 골라져 있지 않아 지시를 못 합니다", false);
+    if (!stream) return remoteReport(text, "화면 공유가 꺼져 있어 화면을 볼 수 없습니다", false);
+    remoteBusy = true;
+    if (heldKeys.length) { heldKeys = []; sendKeys([]); } // 움직이던 건 멈추고 본다
+    try {
+      el.vsLlmState.textContent = "폰 지시 읽는 중...";
+      const crop = cropRegion(gameRect, 900);
+      const ocr = await ocrRead(gameRect);
+      const res = await askBridge(
+        { type: "llm_ask", model, prompt: buildCommandPrompt(text, ocr?.lines), image: crop.b64, timeout: 40 },
+        45000
+      );
+      if (res.error) return remoteReport(text, `LLM 실패: ${res.error}`, false);
+      const o = parseJson(res.text) || {};
+      const why = String(o.why || "").slice(0, 100);
+      const action = String(o.action || "").toLowerCase();
+      if (action === "stop") {
+        stop();
+        remoteReport(text, `정지했습니다 — ${why}`, true);
+      } else if (action === "start") {
+        await start();
+        remoteReport(text, running ? `시작했습니다 — ${why}` : "시작하지 못했습니다 (PC 페이지 상태를 보세요)", running);
+      } else if (action === "key") {
+        const k = String(o.key || "").toLowerCase();
+        if (!MENU_KEYS.includes(k)) return remoteReport(text, `허용되지 않은 키 "${k}" — 누르지 않았습니다`, false);
+        await tapSequence([k]);
+        remoteReport(text, `${k} 를 눌렀습니다 — ${why}`, true);
+      } else if (action === "select") {
+        await remoteSelect(text, String(o.target || ""));
+      } else {
+        remoteReport(text, `할 수 있는 일이 없다고 봤습니다 — ${why || "(이유 없음)"}`, false);
+      }
+    } finally {
+      remoteBusy = false;
+    }
+  }
+
+  async function runRemoteCommand(c) {
+    if (c.kind === "stop") {
+      stop();
+      remoteReport("", "폰에서 정지했습니다 (브릿지도 키를 막는 중)", true);
+    } else if (c.kind === "start") {
+      await start();
+      remoteReport("", running ? "폰에서 시작했습니다" : "폰에서 시작을 눌렀지만 시작하지 못했습니다", running);
+    } else if (c.kind === "say") {
+      await remoteSay(c.text);
+    }
   }
 
   // ---- 레벨업: LLM에게 맡기는 자리 ----
@@ -2360,7 +2851,7 @@ Answer with ONLY a JSON object, nothing else:
   // 매 프레임 물을 수는 없다(한 번에 몇 초씩 걸린다). 대신 레벨업·메뉴·사망은 전부
   // 화면이 멈춘다는 점을 쓴다. "멈췄는데 처음 보는 화면"일 때만 한 번 묻고,
   // 답을 받으면 그 썸네일을 기억하니 같은 화면을 두 번 묻지 않는다.
-  const idPrompt = () => `This image is a screenshot of the game Vampire Survivors.
+  const idPrompt = (ocrLines) => `This image is a screenshot of the game Vampire Survivors.
 Which screen is it? Choose exactly one:
 
 play    - normal gameplay: the character is on the battlefield with monsters, nothing is paused
@@ -2376,7 +2867,7 @@ Tell dead and revive apart by what is on offer, not by the words "you died":
 - Revive / Continue / resurrect, keeping the same run going  -> revive
 - Retry / Restart / Main Menu / Play Again, which would start a NEW run  -> dead
 - A results table with time, kills or gold, and no way to resume  -> dead
-${regionBlock(null, gameRect, true)}${noteBlock()}
+${ocrBlock(ocrLines)}${regionBlock(null, gameRect, true)}${noteBlock()}
 ${KOREAN_RULE}
 
 Answer with ONLY a JSON object, nothing else:
@@ -2420,7 +2911,7 @@ Answer with ONLY a JSON object, nothing else:
     const image = crop.b64;
 
     const res = await askBridge(
-      { type: "llm_ask", model, prompt: idPrompt(), image, timeout: 40 },
+      { type: "llm_ask", model, prompt: idPrompt(freshOcrLines()), image, timeout: 40 },
       45000
     );
     if (res.error) return { error: res.error };
@@ -2431,13 +2922,46 @@ Answer with ONLY a JSON object, nothing else:
     return { state: st, why: String(o.why || "").slice(0, 80), took: res.took };
   }
 
+  // 방금 읽은 화면 글자 (4초 안, 사진 시험 제외)
+  const freshOcrLines = () =>
+    lastOcr && !lastOcr.test && performance.now() - lastOcr.at < 4000 ? lastOcr.lines : null;
+
+  const OCR_EVERY = 1500;     // 글자로 판별은 이만큼마다
+  const OCR_STILL_MS = 1000;  // "플레이 중" 이라도 카메라가 이만큼 멈춰 있으면 글자를 본다
+  let lastOcrIdAt = 0;
+
   // frozen: 게임이 멈췄나 (바깥 전장 기준, 이미 FREEZE_HOLD 만큼 이어진 것)
   async function maybeIdentify(cls, frozen, now) {
-    if (!el.vsIdOn.checked) return;
-    if (idBusy || llmBusy || sending || warming) return;
+    if (idBusy || llmBusy || sending || warming || remoteBusy) return;
     if (!cls.guessed) return; // 이미 아는 화면이면 물을 이유가 없다
-    // 멈춘 화면에서만 묻는다. 예전에는 화면 전체 변화량으로 봐서, 레벨업 창의
-    // 반짝임만으로도 "움직인다" 가 되어 여기서 막혔다.
+
+    // 1) 글자로 — 빠르다. 멈춘 화면이거나, "플레이 중" 이라도 카메라가 1초 넘게 멈춰 있으면 본다.
+    //    타이틀 화면은 가운데에 큰 파란 판이 없어서 플레이 중으로 보일 수 있다. 그러면 몰리가
+    //    시작 버튼 앞에서 WASD 만 누르고 있게 된다 — 그걸 여기서 잡는다.
+    if (
+      el.vsOcrOn.checked && ws && ws.readyState === WebSocket.OPEN &&
+      (frozen || now - lastCamMoveAt >= OCR_STILL_MS) && now - lastOcrIdAt >= OCR_EVERY
+    ) {
+      lastOcrIdAt = now;
+      idBusy = true;
+      const snap = lastThumb;
+      const o = await ocrRead(gameRect);
+      idBusy = false;
+      if (o?.match) {
+        if (!snap || !lastThumb || thumbDist(snap, lastThumb) > MATCH_THRESHOLD) return; // 읽는 사이 바뀜
+        teach(o.match.state, snap);
+        el.vsIdState.textContent = `${STATES[o.match.state]} (글자)`;
+        logger.push(
+          `<span class="tag">글자로 판별</span> <span class="pick">${STATES[o.match.state]}</span> ` +
+            `<span class="dim">화면에 "${o.match.text}" — 이제 이 화면은 바로 압니다</span>`
+        );
+        return;
+      }
+    }
+
+    // 2) LLM — 느리다. 멈춘 화면에서만 묻는다. 예전에는 화면 전체 변화량으로 봐서, 레벨업 창의
+    //    반짝임만으로도 "움직인다" 가 되어 여기서 막혔다.
+    if (!el.vsIdOn.checked) return;
     if (!frozen) return;
     if (now - lastIdAt < ID_COOLDOWN) return;
 
@@ -2506,7 +3030,7 @@ Answer with ONLY a JSON object, nothing else:
           })
           .join(" / ");
         const sel = r.selected ? ` · 선택돼 있던 것: ${r.selected}` : "";
-        const keys = r.keys?.length ? ` · 누름: ${r.keys.join(" ")}` : "";
+        const keys = r.nav ? ` · 옮긴 길: ${r.nav}` : r.keys?.length ? ` · 누름: ${r.keys.join(" ")}` : "";
         const btn = r.buttons?.length ? ` · 버튼: ${r.buttons.join(", ")}` : "";
         // 두 번 읽어 달랐으면 둘 다 보여준다. 지어낸 것인지 한눈에 드러난다.
         const second =
@@ -2517,12 +3041,20 @@ Answer with ONLY a JSON object, nothing else:
           r.runSec === null || r.runSec === undefined
             ? ""
             : ` <span class="dim">${Math.floor(r.runSec / 60)}:${String(r.runSec % 60).padStart(2, "0")}</span>`;
+        const ocr = r.ocr?.length
+          ? `<br /><span class="dim">　화면 글자(OCR): ${r.ocr.join(" / ")}${r.byOcr ? " — 카드 이름 전부 확인됨" : ""}</span>`
+          : "";
+        const guideTxt = r.guide?.length
+          ? `<br /><span class="dim">　공략: ${r.guide.map((g) => g.replace(/^- /, "")).join(" / ")}</span>`
+          : "";
         return (
           `<div><span class="dim">${r.at}</span> ` +
           (r.test ? '<span class="pick">사진</span> ' : `<span class="tag">${r.run || "?"}판</span>${when} `) +
           `<span class="dim">[${r.imgW}x${r.imgH}${r.test ? "" : r.tight ? " 카드영역" : " 화면전체"}]</span> ` +
           `카드 ${(r.options || []).length}장: ${opts}${sel}${keys}${btn}` +
           second +
+          ocr +
+          guideTxt +
           (r.why ? `<br /><span class="dim">　${r.why}</span>` : "") +
           "</div>"
         );
@@ -2562,8 +3094,9 @@ Answer with ONLY a JSON object, nothing else:
   }
 
   // ---- 1단계: 그림을 보고 화면을 읽는다 (판단은 시키지 않는다) ----
-  function buildSeePrompt(state) {
+  function buildSeePrompt(state, ocrLines) {
     const KIND = {
+      levelup: "level-up (pick an upgrade card, then press a confirm button such as 획득하기)",
       dead: "results / game-over",
       chest: "treasure chest reward",
       revive: "revive / continue offer",
@@ -2586,6 +3119,7 @@ Report ONLY what you can see. Do not decide anything, do not choose anything.
    options list. Exactly one option looks different: brighter fill, thicker or lighter
    border, larger text, an animated or raised portrait, or an arrow/cursor next to it.
    Look carefully — this decides how many steps the cursor has to move.
+${ocrBlock(ocrLines, "Every button or menu entry among these lines (for example START / 시작) is a selectable option — include it. Copy option names with these spellings when they match.")}
 ${regionBlock(state, gameRect)}${noteBlock()}
 ${KOREAN_RULE.replace('"why"', '"sees"')}
 
@@ -2614,13 +3148,18 @@ Answer with ONLY a JSON object, nothing else:
     const triedBlock = tried
       ? "\nAlready tried on this screen, and the screen did NOT move on:\n" + tried + "\nDo not choose those again.\n"
       : "";
+    const facts = rosterFor(options);
+    const rosterBlock = facts.length
+      ? "\nFacts about these options from a game guide (use them if the instruction mentions a weapon," +
+        " a character or a stage):\n" + facts.join("\n") + "\n"
+      : "";
 
     return `You are operating a menu in the game Vampire Survivors.
 This is the ${KIND[state] || "title or menu"} screen.
 
 These are the options on screen right now, in order:
 ${list}
-
+${rosterBlock}
 The player's instruction:
 ${goalText()}
 
@@ -2676,8 +3215,9 @@ Answer with ONLY a JSON object, nothing else:
   async function llmSee(state, model) {
     const crop = cropRegion(gameRect, 900);
     if (!crop) return null;
+    const ocr = await ocrRead(gameRect); // 시작 버튼 같은 글자를 빠뜨리지 않게
     const res = await askBridge(
-      { type: "llm_ask", model, prompt: buildSeePrompt(state), image: crop.b64, timeout: 40 },
+      { type: "llm_ask", model, prompt: buildSeePrompt(state, ocr?.lines), image: crop.b64, timeout: 40 },
       45000
     );
     if (res.error) {
@@ -2704,6 +3244,7 @@ Answer with ONLY a JSON object, nothing else:
       columns: Math.max(1, parseInt(seen.columns, 10) || 1),
       sees: seen.sees,
       took: res.took || 0,
+      ocrLines: ocr?.lines || [],
     };
   }
 
@@ -2801,7 +3342,7 @@ Answer with ONLY a JSON object, nothing else:
   // 예전에는 "몇 번째 카드를 고를래?"를 한 번에 물었다. 그랬더니 why 에는 옳은 이름을
   // 써놓고 번호는 엉뚱한 걸 내는 일이 생겼고(= 추론과 다른 아이템 선택),
   // 카드만 세고 있어서 새로고침·건너뛰기·지우기 버튼은 셈에 들어가지도 않았다.
-  function buildSeeLevelPrompt(nCards) {
+  function buildSeeLevelPrompt(nCards, ocrLines) {
     return `This image is a LEVEL-UP screen from the game Vampire Survivors.
 
 Report ONLY what you can see. Do not decide anything, do not choose anything.
@@ -2828,6 +3369,7 @@ item name in larger text, and a description line underneath.
    Reroll, Skip or Banish. These are NOT cards and must not appear in "options".
 
 There are usually about ${nCards} upgrade cards, but trust the image over that number.
+${ocrBlock(ocrLines, "The card names are among these lines. When a card name matches one of them, copy that spelling.")}
 ${regionBlock("levelup", cardRect || gameRect)}${noteBlock()}
 
 ${KOREAN_RULE.replace('"why"', '"sees"')}
@@ -2837,8 +3379,137 @@ Answer with ONLY a JSON object, nothing else:
   }
 
   // ---- 레벨업 2단계: 그림 없이, 목록만 보고 무엇을 고를지 정한다 ----
-  function buildPickPrompt(options, descs) {
-    const have = pickedThisRun.length ? pickedThisRun.join(", ") : "(아직 없음)";
+  // ---- 공략 (진화 조합) ----
+  // 나무위키 진화 무기 문서의 조합식을 옮긴 데이터 (game/knowledge/vs_evolutions.json).
+  // gemma3 는 뱀서 진화 조합을 잘 모르거나 지어낸다. 레벨업 때 지금 나온 카드와 이번 판에 고른 것에
+  // 관련된 조합만 이름으로 정확히 찾아 고르기 프롬프트에 몇 줄 붙인다 (RAG 비슷한 것).
+  let guide = null;
+  fetch("knowledge/vs_evolutions.json", { cache: "no-store" })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d) => {
+      guide = d && Array.isArray(d.evolutions) ? d : null;
+      if (guide) {
+        logger.push(
+          `<span class="tag">공략</span> 진화 조합 ${guide.evolutions.length}개를 불러왔습니다 ` +
+            '<span class="dim">— 레벨업 때 관련된 조합만 골라 LLM 에게 알려줍니다</span>'
+        );
+      }
+    })
+    .catch(() => {});
+
+  // 캐릭터·스테이지 목록 (나무위키 캐릭터·스테이지 문서에서 이름, 시작 무기, 체력, 효과, 해금 조건,
+  // 스테이지 시간만 옮긴 것). 메뉴에서 고를 때 LLM 에게 알려주고, 고른 캐릭터의 시작 무기를
+  // 레벨업 공략의 "이미 가진 것" 에 넣는 데 쓴다.
+  const roster = { characters: [], stages: [] };
+  for (const [file, key] of [["vs_characters.json", "characters"], ["vs_stages.json", "stages"]]) {
+    fetch("knowledge/" + file, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d && Array.isArray(d[key])) roster[key] = d[key]; })
+      .catch(() => {});
+  }
+
+  // 이번에 고른 캐릭터. 새로 고를 때까지 판을 넘어도 유지한다 (보통 같은 캐릭터로 계속 돌린다).
+  let runCharacter = load("runCharacter", null);
+
+  // 글자들 중에 아는 캐릭터 이름이 있나. 짧은 이름("이멜다")은 정확히 같을 때만 —
+  // 한 글자짜리("포") 는 다른 말과 겹쳐서 보지 않는다.
+  function findCharacters(texts) {
+    const found = new Map();
+    for (const t of texts || []) {
+      for (const c of roster.characters) {
+        const full = sameName(t, c.name) || ocrNorm(t).includes(ocrNorm(c.name));
+        const short = c.short.length >= 2 && ocrNorm(t) === ocrNorm(c.short);
+        if (full || short) found.set(c.name, c);
+      }
+    }
+    return [...found.values()];
+  }
+
+  function findStage(text) {
+    return roster.stages.find((st) => sameName(text, st.name) || (st.en && sameName(text, st.en))) || null;
+  }
+
+  // 메뉴 항목 중 아는 캐릭터·스테이지에 대한 사실 몇 줄
+  function rosterFor(options) {
+    const lines = [];
+    for (const o of options) {
+      const [c] = findCharacters([o]);
+      if (c) {
+        lines.push(
+          `- ${o}: 캐릭터 · 시작 무기 ${c.weapon || c.note || "?"} · 체력 ${c.hp || "?"}` +
+            (c.effect ? ` · ${c.effect}` : "")
+        );
+        continue;
+      }
+      const st = findStage(o);
+      if (st) lines.push(`- ${o}: 스테이지 · ${st.time || "?"}` + (st.group ? ` · ${st.group}` : ""));
+    }
+    return lines.slice(0, 12);
+  }
+
+  // 메뉴에서 엔터를 누르기 직전에 부른다. 고르는 게 캐릭터면(항목 이름이 캐릭터거나, 화면 글자에
+  // 캐릭터 이름이 딱 하나 보이면) 기억한다. 캐릭터 선택 화면은 초상화만 있고 이름은 옆 칸에
+  // 선택된 캐릭터 하나만 나오기 때문에 화면 글자도 본다.
+  async function noteCharacter(target) {
+    let hit = findCharacters([target]);
+    if (hit.length !== 1) {
+      const ocr = await ocrRead(gameRect);
+      hit = findCharacters((ocr?.lines || []).map((l) => l.text));
+    }
+    if (hit.length !== 1) return;
+    const c = hit[0];
+    if (runCharacter && runCharacter.name === c.name) return;
+    runCharacter = { name: c.name, short: c.short, weapon: c.weapon };
+    save("runCharacter", runCharacter);
+    logger.push(
+      `<span class="tag">캐릭터</span> <span class="pick">${c.name}</span> ` +
+        `<span class="dim">— 시작 무기 ${c.weapon || c.note || "모름"}. 레벨업 공략에서 이미 가진 것으로 칩니다.</span>`
+    );
+  }
+
+  // 띄어쓰기·대소문자는 무시. 한 글자 틀림은 긴 이름(6자 이상)에서만 봐준다 —
+  // "검은 심장" 과 "붉은 심장" 처럼 짧은 이름은 한 글자 차이가 전혀 다른 아이템이다.
+  const sameName = (a, b) => {
+    const x = ocrNorm(a), y = ocrNorm(b);
+    return !!x && !!y && (x === y || (Math.min(x.length, y.length) >= 6 && similar(x, y) >= 0.8));
+  };
+
+  // cards: 지금 나온 카드 이름들, owned: 이번 판에 이미 고른 것들
+  // 카드가 기본 무기인 조합은 늘 알려주고, 카드가 재료(패시브 등)로 쓰이는 조합은 이미 가진 것과
+  // 이어질 때만 알려준다 — 검은 심장처럼 여러 조합에 쓰이는 재료는 다 늘어놓으면 너무 길다.
+  function guideFor(cards, owned) {
+    if (!guide) return [];
+    const has = (n) => owned.some((o) => sameName(o, n));
+    const lines = [];
+    const used = new Set();
+    for (const card of cards) {
+      for (const e of guide.evolutions) {
+        if (used.has(card + "|" + e.evolved)) continue; // 같은 조합도 카드마다 따로 (그 카드 입장에서 무엇을 가졌는지가 다르다)
+        const asWeapon = e.weapons.some((w) => sameName(w, card));
+        const asPart = e.needs.some((n) => sameName(n, card));
+        if (!asWeapon && !asPart) continue;
+        const others = [...e.weapons, ...e.needs].filter((x) => !sameName(x, card));
+        const got = others.filter(has);
+        if (!asWeapon && got.length === 0) continue;
+        used.add(card + "|" + e.evolved);
+        const parts = [
+          ...e.weapons.map((w) => w + " (최고 레벨)"),
+          ...e.needs.map((n) => n + (e.needs_max ? " (최고 레벨)" : "")),
+        ];
+        lines.push(
+          `- ${card}${has(card) ? " (보유 중)" : ""}: ${parts.join(" + ")} → ${e.evolved}` +
+            (others.length ? ` · 이미 가진 것: ${got.join(", ") || "없음"}` : "") +
+            (e.note ? ` (${e.note})` : "")
+        );
+      }
+    }
+    return lines.slice(0, 12);
+  }
+
+  function buildPickPrompt(options, descs, guideLines) {
+    const have =
+      (runCharacter?.weapon ? `${runCharacter.weapon} (시작 무기, 캐릭터 ${runCharacter.name}), ` : "") +
+      (pickedThisRun.length ? pickedThisRun.join(", ") : "(레벨업에서 고른 것 아직 없음)");
     const past = history
       .slice(-8)
       .filter((r) => r.picks && r.picks.length)
@@ -2850,6 +3521,12 @@ Answer with ONLY a JSON object, nothing else:
         return `${i + 1}. ${o}` + (d ? ` — ${d}` : "");
       })
       .join("\n");
+    const guideBlock = guideLines && guideLines.length
+      ? "\nEvolution recipes from a game guide (facts — trust these over your own memory)." +
+        " An evolution needs the weapon at max level plus the listed items; it makes the weapon far stronger." +
+        ' "이미 가진 것" lists what we already hold for that recipe:\n' +
+        guideLines.join("\n") + "\n"
+      : "";
 
     return `You are choosing what to take on a level-up screen in Vampire Survivors.
 
@@ -2862,7 +3539,7 @@ choosing one upgrade card):
 ${goalText()}
 
 Already taken this run: ${have}
-
+${guideBlock}
 Outcomes of past runs (survival time and what was taken):
 ${past}
 
@@ -2870,7 +3547,8 @@ Every entry above is an upgrade card. Reroll, Skip and Banish are not offered he
 do not answer with those.
 
 Pick the single best upgrade for long-term survival. Prefer completing strong
-weapon+passive synergies and evolutions over spreading thin.
+weapon+passive synergies and evolutions over spreading thin — a card that completes or
+advances a recipe above with something we already hold is usually the best pick.
 
 Pick exactly one and copy it exactly from the list above.
 
@@ -2905,10 +3583,14 @@ Answer with ONLY a JSON object, nothing else:
       );
     }
 
+    // --- 0단계: 글자 (OCR) — LLM 이 읽은 이름이 실제로 화면에 있는지 맞춰보는 데 쓴다 ---
+    const ocr = testImage ? testImage.ocr : await ocrRead(cardRect || gameRect);
+    const ocrLines = ocr?.lines || [];
+
     // --- 1단계: 화면 읽기 ---
     el.vsLlmState.textContent = "카드 읽는 중...";
     const seenRes = await askBridge(
-      { type: "llm_ask", model, prompt: buildSeeLevelPrompt(nCards), image, timeout: 40 },
+      { type: "llm_ask", model, prompt: buildSeeLevelPrompt(nCards, ocrLines), image, timeout: 40 },
       45000
     );
     if (seenRes.error) {
@@ -2931,17 +3613,25 @@ Answer with ONLY a JSON object, nothing else:
       logger.push('<span class="bad">카드를 못 읽었습니다 — 누르지 않고 기다립니다</span>');
       return null;
     }
-    // 한 번 더 읽혀 대조한다. 지어낸 이름은 매번 달라지고, 실제로 읽은 이름은 그대로다.
+    // 읽은 이름이 OCR 글자 중에 있으면 실제로 화면에 있는 이름이다.
+    // 전부 있으면 두 번 읽을 필요가 없다 (몇 초 아낀다).
+    const ocrHit = options.map((o) => ocrFind(o, ocrLines));
+    const byOcr = ocrLines.length > 0 && ocrHit.every(Boolean);
+
+    // 아니면 한 번 더 읽혀 대조한다. 지어낸 이름은 매번 달라지고, 실제로 읽은 이름은 그대로다.
     // 게임이 멈춰 있는 화면이라 몇 초 더 써도 된다.
-    el.vsLlmState.textContent = "한 번 더 확인 중...";
-    const seen2Res = await askBridge(
-      { type: "llm_ask", model, prompt: buildSeeLevelPrompt(nCards), image, timeout: 40 },
-      45000
-    );
-    const seen2 = seen2Res.error ? null : parseJson(seen2Res.text);
-    const options2 = (Array.isArray(seen2?.options) ? seen2.options : [])
-      .map((x) => String(x || "").trim().slice(0, 24))
-      .filter(Boolean);
+    let options2 = [];
+    if (!byOcr) {
+      el.vsLlmState.textContent = "한 번 더 확인 중...";
+      const seen2Res = await askBridge(
+        { type: "llm_ask", model, prompt: buildSeeLevelPrompt(nCards, ocrLines), image, timeout: 40 },
+        45000
+      );
+      const seen2 = seen2Res.error ? null : parseJson(seen2Res.text);
+      options2 = (Array.isArray(seen2?.options) ? seen2.options : [])
+        .map((x) => String(x || "").trim().slice(0, 24))
+        .filter(Boolean);
+    }
 
     // 두 판독이 딴판인 자리는 못 읽은 것으로 본다.
     // 카드 장수부터 다르면 무엇을 봤는지 자체가 어긋난 것이다.
@@ -2950,6 +3640,7 @@ Answer with ONLY a JSON object, nothing else:
     for (let i = 0; i < options.length; i++) {
       const a = options[i];
       if (!a || a === "?" || isPlaceholder(a)) { unreadable.add(i); continue; }
+      if (ocrHit[i]) continue; // 화면 글자로 확인된 이름
       if (countMismatch) { unreadable.add(i); continue; }
       if (options2.length && similar(a, options2[i]) < SIMILAR_ENOUGH) unreadable.add(i);
     }
@@ -2990,6 +3681,7 @@ Answer with ONLY a JSON object, nothing else:
         descs,
         buttons,
         selected: options[si],
+        ocr: ocrLines.map((l) => l.text),
         why: `두 번 읽은 결과가 달라 믿을 수 없습니다 (${bad})`,
         imgW: crop.w, imgH: crop.h, tight: !!cardRect, test: !!testImage,
       });
@@ -3002,9 +3694,12 @@ Answer with ONLY a JSON object, nothing else:
     }
 
     // --- 2단계: 무엇을 고를지 (그림 없이, 카드 중에서만) ---
+    // 공략에서 지금 카드·가진 것과 관련된 진화 조합만 찾아 같이 준다
+    const owned = [...(runCharacter?.weapon ? [runCharacter.weapon] : []), ...pickedThisRun];
+    const guideLines = guideFor(options, owned);
     el.vsLlmState.textContent = "고르는 중...";
     const pickRes = await askBridge(
-      { type: "llm_ask", model, prompt: buildPickPrompt(options, descs), timeout: 40 },
+      { type: "llm_ask", model, prompt: buildPickPrompt(options, descs, guideLines), timeout: 40 },
       45000
     );
     if (pickRes.error) {
@@ -3035,6 +3730,9 @@ Answer with ONLY a JSON object, nothing else:
       selected: options[si],
       picked: options[ti],
       keys,
+      ocr: ocrLines.map((l) => l.text),
+      byOcr,
+      guide: guideLines,
       why,
       imgW: crop.w,
       imgH: crop.h,
@@ -3044,6 +3742,8 @@ Answer with ONLY a JSON object, nothing else:
     return {
       keys,
       options,
+      si,
+      ti,
       item: options[ti],
       from: options[si],
       why,
@@ -3261,6 +3961,10 @@ Answer with ONLY a JSON object, nothing else:
       vctx.setLineDash([]);
     }
     if (pendingRegion) box(pendingRegion, "#ffffff", "이름 붙일 영역");
+    // 방금 읽은 글자 (몇 초만 보여준다)
+    if (lastOcr && !lastOcr.test && performance.now() - lastOcr.at < 4000) {
+      for (const l of lastOcr.lines) box(l, "rgba(94,230,255,0.9)", l.text);
+    }
     if (el.vsUiBlue.checked && !cardRect) {
       vctx.setLineDash([2, 5]);
       box(uiCheckRect(), uiShown ? "#5aa9ff" : "rgba(90,169,255,0.45)", uiShown ? "파란 창 보임" : "파란 창 확인");
@@ -3362,17 +4066,26 @@ Answer with ONLY a JSON object, nothing else:
     uiShown = !!blueSince && now - blueSince >= UI_HOLD;
     const stillFrozen = !!stillSince && now - stillSince >= (uiOn ? LONG_FREEZE : FREEZE_HOLD);
     const worldFrozen = uiOn ? uiShown || stillFrozen : stillFrozen;
+    if (worldFrozen && !lastWorldFrozen) frozeAt = now;
     lastWorldFrozen = worldFrozen;
     lastFrozenWhy = !worldFrozen ? "" : uiOn && uiShown ? "파란 창" : "움직임 없음";
 
     const cls = classify(info.thumb, worldFrozen);
 
-    // 멈춘 화면인데 뭔지 모르고, 알아볼 수단(LLM 화면 판별)도 꺼져 있으면 알려준다
-    if (worldFrozen && cls.guessed && !el.vsIdOn.checked && !hintedIdOff) {
+    // 멈춘 화면인데 뭔지 모르고, 알아볼 수단(LLM 화면 판별)도 꺼져 있으면 알려준다.
+    // 글자 읽기가 켜져 있으면 그게 먼저 보고 나서 말한다 — 안 그러면 글자로 금방 알아볼
+    // 화면에서도 "모릅니다" 가 먼저 찍힌다.
+    // 멈추기 전에 읽은 글자(플레이 화면)로 판단하면 안 된다 — 멈춘 뒤에 읽은 것만 친다.
+    const ocrGaveUp =
+      !el.vsOcrOn.checked ||
+      (lastOcr && !lastOcr.test && !lastOcr.match && lastOcr.at >= frozeAt);
+    if (worldFrozen && cls.guessed && !el.vsIdOn.checked && ocrGaveUp && !hintedIdOff) {
       hintedIdOff = true;
       logger.push(
         '<span class="bad">게임이 멈췄는데 무슨 화면인지 모릅니다</span> ' +
-          '<span class="dim">— 가르쳐준 화면과 안 맞고, LLM 화면 판별도 꺼져 있어서 레벨업인지 알 수단이 없습니다. ' +
+          '<span class="dim">— 가르쳐준 화면과 안 맞고, ' +
+          (el.vsOcrOn.checked ? "화면 글자로도 못 알아봤고, " : "") +
+          "LLM 화면 판별도 꺼져 있어서 레벨업인지 알 수단이 없습니다. " +
           "LLM 메뉴에서 \"화면 종류도 LLM이 판별\" 을 켜거나, 화면 설정에서 레벨업을 가르쳐주세요.</span>"
       );
     }
@@ -3411,7 +4124,8 @@ Answer with ONLY a JSON object, nothing else:
     checkMenuOutcome(cls.state, info.thumb);
     maybeIdentify(cls, worldFrozen, now);
 
-    if (running) {
+    // 폰 지시를 처리하는 동안에는 자동 조작을 쉰다 (키가 섞이지 않게)
+    if (running && !remoteBusy) {
       if (cls.state === "play") {
         menuTries = []; // 메뉴를 빠져나왔다. 다음에 만나는 메뉴는 새로 본다
         // 끝났다고 보류해둔 게 있으면, 플레이가 얼마 만에 돌아왔는지로 판단한다.
@@ -3473,7 +4187,123 @@ Answer with ONLY a JSON object, nothing else:
     el.vsUiThrVal.textContent = el.vsUiThr.value + "%";
     el.vsGemThrVal.textContent = el.vsGemThr.value;
     drawView(info);
-    if (sightVisible()) drawSight(info);
+    if (sightVisible() || remoteWatching) drawSight(info);
+    pushRemote(info, now);
+  }
+
+  // ---- 폰으로 보기 ----
+  // 폰이 이 페이지를 그냥 열면 빈 페이지다 — 화면 공유와 몰리의 상태는 이 탭 안에만 있다.
+  // 그래서 2초마다 상태를 브릿지로 보내고, 폰은 브릿지가 여는 페이지에서 본다.
+  // 폰에서 온 지시(정지·시작·말)도 이때 답장으로 받아온다.
+  // 그림(화면·시야)은 폰이 실제로 보고 있을 때만 보낸다.
+  let remoteOn = false;       // 브릿지를 --remote 로 띄웠나 (연결될 때 브릿지가 알려준다)
+  let remoteWatching = false; // 등록한 폰이 최근 10초 안에 가져갔나
+  let lastRemoteAt = 0;
+  let remoteCode = null;      // 마지막으로 만든 연결 코드 — 어느 응답이 화면을 다시 그려도 남긴다
+  let remoteCodeUntil = 0;
+  const REMOTE_EVERY = 2000;
+
+  function snapJpeg(canvas, width, quality) {
+    const c = document.createElement("canvas");
+    c.width = width;
+    c.height = Math.round((canvas.height * width) / canvas.width);
+    c.getContext("2d").drawImage(canvas, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", quality).split(",")[1];
+  }
+
+  function remoteState(info) {
+    return {
+      at: new Date().toLocaleTimeString("ko-KR", { hour12: false }),
+      running,
+      screen: el.vsState.textContent,
+      run: el.vsRunNow.textContent,
+      dir: el.vsDir.textContent,
+      hp: el.vsHp.textContent,
+      xp: el.vsXp.textContent,
+      enemies: info.enemyCount,
+      gems: info.gemCount,
+      live: el.vsLive.textContent,
+      frozen: frozenText(),
+      llm: el.vsLlmState.textContent,
+      char: runCharacter ? `${runCharacter.name} (시작 무기 ${runCharacter.weapon || "?"})` : "",
+      cmd: remoteCmdStatus,
+      cmdBusy: remoteBusy,
+      logs: [...document.querySelectorAll("#vsLog > *")].slice(0, 30).map((e) => e.textContent),
+      reads: readLog.slice(-3).reverse().map((r) => ({
+        at: r.at, options: r.options, picked: r.picked, why: r.why,
+        selected: r.selected, nav: r.nav, keys: r.keys, byOcr: r.byOcr,
+      })),
+    };
+  }
+
+  function pushRemote(info, now) {
+    if (!remoteOn || !ws || ws.readyState !== WebSocket.OPEN) return;
+    if (now - lastRemoteAt < REMOTE_EVERY) return;
+    lastRemoteAt = now;
+    const msg = { type: "remote_push", state: remoteState(info) };
+    if (remoteWatching) {
+      msg.view = snapJpeg(view, 480, 0.6);
+      msg.sight = snapJpeg(el.vsSight, 480, 0.6);
+    }
+    askBridge(msg, 5000).then((r) => {
+      if (r.watching !== undefined) remoteWatching = !!r.watching;
+      for (const c of r.commands || []) runRemoteCommand(c);
+      // '폰으로 보기' 메뉴를 보고 있으면 연결 상태도 같이 새로 그린다 (코드가 쓰였는지, 누가 보는지)
+      if (document.querySelector('.vs-sec[data-sec="remote"]')?.classList.contains("is-active")) renderRemote();
+    });
+  }
+
+  function showRemote(r) {
+    if (!r || r.error) {
+      el.vsRemoteState.textContent = r?.error ? `브릿지에 묻지 못했습니다: ${r.error}` : "브릿지에 연결되면 확인할 수 있습니다";
+      return;
+    }
+    if (!r.on) {
+      el.vsRemoteState.innerHTML =
+        '<span class="bad">꺼져 있습니다</span> — 브릿지를 <code>.\\start.ps1 -Remote</code> ' +
+        "(또는 <code>bridge.py --remote</code>) 로 띄워야 합니다.";
+      return;
+    }
+    // 어느 주소를 언제 쓰는지 붙인다. 이름 없는 주소(도커·WSL 가상 주소)는 폰이 못 쓰니 뺀다.
+    const kinds = r.kinds || {};
+    const usable = (r.addrs || []).filter((a) => kinds[a] !== "");
+    const addrs =
+      usable.map((a) => `<b>http://${a}:${r.port}</b>${kinds[a] ? ` <span class="dim">(${kinds[a]})</span>` : ""}`).join("<br />") ||
+      `(이 PC 주소):${r.port}`;
+    const outside = usable.some((a) => (kinds[a] || "").startsWith("밖에서"))
+      ? ""
+      : '<br /><span class="bad">밖(모바일 데이터)에서는 안 열립니다</span> ' +
+        '<span class="dim">— 집 와이파이 주소는 집 안에서만 통합니다. 밖에서 보려면 PC 와 폰에 Tailscale 을 켜세요 ' +
+        "(켜고 브릿지를 다시 띄우면 여기에 밖에서 쓰는 주소가 생깁니다).</span>";
+    const devices = (r.devices || []).length
+      ? r.devices.map((d) => `${d.since} 연결 — <span class="dim">${d.name.replace(/[<>&]/g, "")}</span>`).join("<br />")
+      : '<span class="dim">아직 없음</span>';
+    if (r.code_active === false) remoteCode = null; // 폰이 썼거나 시간이 지났다
+    const left = Math.round((remoteCodeUntil - performance.now()) / 1000);
+    const code =
+      remoteCode && left > 0
+        ? `<div class="vs-code">${remoteCode}</div><span class="dim">폰에서 아래 주소를 열고 이 숫자를 넣으세요. ` +
+          `${left}초 안에, 한 번만 쓸 수 있습니다.</span><br />`
+        : "";
+    el.vsRemoteState.innerHTML =
+      code +
+      `<span class="good">켜짐</span> · 폰에서 열 주소:<br />${addrs}${outside}` +
+      `<br />${r.watching ? '<span class="good">지금 폰이 보고 있습니다</span>' : '<span class="dim">지금 보는 폰 없음</span>'}` +
+      `<br />연결한 기기:<br />${devices}`;
+  }
+
+  async function renderRemote(action) {
+    if (!el.vsRemoteState) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      if (!action) return showRemote(null);
+      if (!(await connectBridge())) return showRemote({ error: "브릿지 미연결" });
+    }
+    const r = await askBridge({ type: action || "remote_info" }, 5000);
+    if (r.code) {
+      remoteCode = r.code;
+      remoteCodeUntil = performance.now() + (r.ttl || 120) * 1000;
+    }
+    showRemote(r);
   }
 
   function setStatus(text, kind) {
@@ -3487,6 +4317,7 @@ Answer with ONLY a JSON object, nothing else:
       if (!(await connectBridge())) return setStatus("브릿지에 연결하지 못했습니다", "bad");
     }
     if (!gameRect) logger.push('<span class="dim">게임 영역이 지정되지 않아 화면 전체를 게임으로 봅니다</span>');
+    if (remoteOn) await askBridge({ type: "remote_unhold" }, 3000); // 폰에서 걸어둔 정지를 푼다
     running = true;
     setStatus("조작 중 — 게임 창을 클릭해서 활성화하세요", "ok");
   }
@@ -3676,11 +4507,12 @@ Answer with ONLY a JSON object, nothing else:
     customStates = {};
     gameRect = null; hpRect = null; hpColor = null; cardRect = null;
     regions = [];
+    runCharacter = null;
     renderRegions();
     xpRect = null;
     // 키 지정이 바뀌면 그 성공률 기록도 의미가 없어지므로 같이 지운다
     menuStats = {};
-    ["taught", "plan", "game", "hp", "hpColor", "xp", "menuStats", "cards", "customStates", "regions", "uiColor"].forEach((k) =>
+    ["taught", "plan", "game", "hp", "hpColor", "xp", "menuStats", "cards", "customStates", "regions", "uiColor", "runCharacter"].forEach((k) =>
       localStorage.removeItem(STORE + "." + k)
     );
     renderMenuStats();
@@ -3808,6 +4640,34 @@ Answer with ONLY a JSON object, nothing else:
   el.vsGoalRepeat.checked = load("goalRepeat", false);
   el.vsGoalRepeat.addEventListener("change", () => save("goalRepeat", el.vsGoalRepeat.checked));
   el.vsGoalState.textContent = el.vsGoal.value.trim() ? "목표 있음" : "목표 없음";
+
+  el.vsRemoteCode.addEventListener("click", () => renderRemote("remote_code"));
+  el.vsRemoteRevoke.addEventListener("click", () => {
+    if (confirm("연결한 기기를 모두 끊을까요? 폰에서 다시 보려면 연결 코드를 새로 넣어야 합니다.")) {
+      renderRemote("remote_revoke");
+    }
+  });
+  // 메뉴를 열 때마다 새로 묻는다 (지금 보는 폰이 있는지 등)
+  document.querySelector('.vs-menu-btn[data-sec="remote"]')?.addEventListener("click", () => renderRemote());
+
+  el.vsOcrOn.checked = load("ocrOn", true);
+  el.vsOcrOn.addEventListener("change", () => save("ocrOn", el.vsOcrOn.checked));
+  el.vsOcrWords.value = load("ocrWords", OCR_WORDS_DEFAULT);
+  el.vsOcrWords.addEventListener("change", () => save("ocrWords", el.vsOcrWords.value));
+  el.vsOcrNow.addEventListener("click", async () => {
+    if (!stream) {
+      el.vsOcrResult.textContent = "화면 공유(또는 테스트 영상)를 먼저 켜주세요";
+      return;
+    }
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      if (!(await connectBridge())) {
+        el.vsOcrResult.textContent = "브릿지에 연결하지 못했습니다";
+        return;
+      }
+    }
+    el.vsOcrResult.textContent = "읽는 중...";
+    showOcr(await ocrRead(gameRect), "지금 화면");
+  });
 
   el.vsIdOn.checked = load("idOn", false);
   el.vsIdOn.addEventListener("change", () => {

@@ -1,0 +1,4 @@
+# 브릿지가 쓰는 패키지. 시험한 버전 그대로 고정한다.
+# websockets 는 14 미만이면 연결 객체 모양이 달라서 Origin 검사가 조용히 빠진다 — 낮추지 말 것.
+websockets==17.1
+pydirectinput==1.0.4
