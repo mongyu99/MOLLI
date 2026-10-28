@@ -18,6 +18,7 @@ import http.cookies
 import http.server
 import ipaddress
 import json
+import os
 import secrets
 import socket
 import socketserver
@@ -118,9 +119,72 @@ class KeyPresser:
         self.set_held(set())
 
 
-# Ollama가 어디서 도는지. 같은 PC의 도커든, 나중에 서브컴이든 주소만 바꾸면 된다.
-#   python bot/bridge.py --ollama http://192.168.0.50:11434
+# LLM 을 어디에 물을지. 페이지와 주고받는 메시지(llm_models/llm_ask)는 같고, 여기서만 갈린다.
+#   ollama - 로컬 모델. 주소만 바꾸면 도커든 서브컴이든 된다
+#              python bot/bridge.py --ollama http://192.168.0.50:11434
+#   api    - OpenAI 호환 API (기본은 Meta Llama API). 키는 환경변수로 받는다
+#              $env:LLM_API_KEY = "..."; python bot/bridge.py --llm api
+#            다른 곳을 쓰려면 --api-base 만 바꾼다 (OpenAI, Together, Groq 등 /chat/completions 가 있는 곳)
+# 나중에 로컬 LLM 으로 돌아갈 때는 --llm ollama (키가 없으면 기본이 ollama).
 OLLAMA = "http://localhost:11434"
+LLM = "ollama"
+API_BASE = "https://api.llama.com/compat/v1"
+API_KEY = ""
+# /models 를 못 주는 곳도 있어서, 그때 페이지 목록에 띄울 기본 모델
+API_DEFAULT_MODELS = ["Llama-4-Maverick-17B-128E-Instruct-FP8", "Llama-4-Scout-17B-16E-Instruct-FP8"]
+
+
+def llm_models():
+    return api_models() if LLM == "api" else ollama_models()
+
+
+def llm_ask(model: str, prompt: str, image_b64: str | None, timeout: int):
+    return (api_ask if LLM == "api" else ollama_ask)(model, prompt, image_b64, timeout)
+
+
+def _api_request(path: str, payload: dict | None, timeout: int):
+    import urllib.error
+    import urllib.request
+
+    req = urllib.request.Request(
+        f"{API_BASE}{path}",
+        data=json.dumps(payload).encode("utf-8") if payload is not None else None,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {API_KEY}"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        # 키가 틀렸는지, 모델 이름이 틀렸는지는 본문에만 적혀 온다
+        raise RuntimeError(f"HTTP {e.code}: {e.read().decode('utf-8', 'replace')[:300]}") from None
+
+
+def api_models():
+    try:
+        d = _api_request("/models", None, 10)
+        names = [m.get("id") for m in d.get("data", []) if m.get("id")]
+    except Exception as e:
+        print(f"[LLM] 모델 목록을 못 받아 기본 목록을 씁니다: {e}")
+        names = []
+    return sorted(names) or API_DEFAULT_MODELS
+
+
+def api_ask(model: str, prompt: str, image_b64: str | None, timeout: int):
+    """OpenAI 호환 /chat/completions 로 한 번 물어본다. 이미지는 data URL 로 붙인다."""
+    content: list[dict] = [{"type": "text", "text": prompt}]
+    if image_b64:
+        content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_b64}"}})
+    d = _api_request(
+        "/chat/completions",
+        {
+            "model": model,
+            "messages": [{"role": "user", "content": content}],
+            "temperature": 0.2,
+            "max_tokens": 900,
+        },
+        timeout,
+    )
+    return d["choices"][0]["message"].get("content") or ""
 
 
 def ollama_models():
@@ -627,10 +691,10 @@ async def main_async(args):
                     print("[정지] 모든 키 해제")
                 elif kind == "llm_models":
                     try:
-                        models = await asyncio.to_thread(ollama_models)
+                        models = await asyncio.to_thread(llm_models)
                         await ws.send(json.dumps({"id": msg.get("id"), "models": models}))
                     except Exception as e:
-                        await ws.send(json.dumps({"id": msg.get("id"), "error": f"ollama 연결 실패: {e}"}))
+                        await ws.send(json.dumps({"id": msg.get("id"), "error": f"{LLM} 연결 실패: {e}"}))
                     continue
                 elif kind == "llm_ask":
                     # 블로킹 HTTP 호출을 그냥 await하면 이벤트 루프가 멈춰서
@@ -638,7 +702,7 @@ async def main_async(args):
                     try:
                         t0 = time.time()
                         text = await asyncio.to_thread(
-                            ollama_ask,
+                            llm_ask,
                             msg.get("model", ""),
                             msg.get("prompt", ""),
                             msg.get("image"),
@@ -684,7 +748,10 @@ async def main_async(args):
         print(f"게임 페이지 : http://localhost:{args.port}")
 
     print(f"브릿지      : ws://localhost:{args.ws_port}")
-    print(f"Ollama      : {OLLAMA}")
+    if LLM == "api":
+        print(f"LLM         : API {API_BASE} (키 {'있음' if API_KEY else '없음 — LLM_API_KEY 를 넣으세요'})")
+    else:
+        print(f"LLM         : Ollama {OLLAMA}")
     print(f"대상 창     : {WINDOW or '제한 없음 (활성 창이 무엇이든 키를 보냅니다)'}")
     if remote:
         shown = [a for a in lan_addrs() if addr_kind(a)]
@@ -708,7 +775,7 @@ async def main_async(args):
 
 
 def main():
-    global OLLAMA, WINDOW
+    global OLLAMA, WINDOW, LLM, API_BASE, API_KEY
     p = argparse.ArgumentParser()
     p.add_argument("--live", action="store_true", help="실제로 키를 누른다 (기본은 로그만)")
     p.add_argument("--port", type=int, default=8743, help="게임 페이지 HTTP 포트")
@@ -740,8 +807,27 @@ def main():
         default=OLLAMA,
         help="Ollama 주소. 도커든 다른 PC든 여기만 바꾸면 된다 (기본 http://localhost:11434)",
     )
+    p.add_argument(
+        "--llm",
+        choices=["ollama", "api"],
+        default=None,
+        help="LLM 을 어디에 물을지. 기본은 API 키가 있으면 api, 없으면 ollama",
+    )
+    p.add_argument(
+        "--api-base",
+        default=os.environ.get("LLM_API_BASE", API_BASE),
+        help=f"OpenAI 호환 API 주소 (기본 {API_BASE}, 환경변수 LLM_API_BASE)",
+    )
+    p.add_argument(
+        "--api-key",
+        default="",
+        help="API 키. 명령줄 기록에 남으니 되도록 환경변수 LLM_API_KEY 로 넣는다",
+    )
     args = p.parse_args()
     OLLAMA = args.ollama.rstrip("/")
+    API_BASE = args.api_base.rstrip("/")
+    API_KEY = args.api_key or os.environ.get("LLM_API_KEY", "")
+    LLM = args.llm or ("api" if API_KEY else "ollama")
     WINDOW = args.window.strip()
 
     try:

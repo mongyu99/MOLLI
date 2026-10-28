@@ -602,3 +602,19 @@ footer code {
   color: var(--accent, #ffd479);
   margin: 4px 0;
 }
+
+.tabs { align-items: center; }
+.game-name { font-size: 18px; color: var(--accent); margin-right: 8px; }
+.game-pick { max-width: 720px; }
+.game-pick h2 { margin: 0 0 16px; }
+.game-pick-list { display: flex; gap: 16px; flex-wrap: wrap; }
+.game-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  min-width: 220px;
+  padding: 20px 24px;
+  text-align: left;
+}
+.game-card b { font-size: 22px; color: var(--text); }

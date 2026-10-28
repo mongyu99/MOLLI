@@ -143,10 +143,8 @@
     const want = onVamp ? slot : layout;
     if (molli.parentElement !== want) want.appendChild(molli);
   }
-  // 탭 전환 리스너가 is-active 를 바꾸기 전에 불리면 옛 상태를 본다. 한 틱 미룬다.
-  document.querySelectorAll(".tab").forEach((t) =>
-    t.addEventListener("click", () => setTimeout(placeMolli, 0))
-  );
+  // 게임 선택(tabs.js)이 화면을 바꿀 때마다 알려준다.
+  document.addEventListener("gamechange", placeMolli);
   placeMolli();
 
   // 왼쪽 메뉴: 고른 것만 보여준다
@@ -739,6 +737,31 @@
       lines.map((l) => "- " + l.text).join("\n") +
       "\n" + (note || "") + "\n"
     );
+  }
+
+  // 메뉴·화면 판별·폰 지시에서 LLM 에게 줄 화면 글자는 항목 이름처럼 보이는 것만 추린다.
+  // 캐릭터 선택창은 능력치·설명·숫자 글자가 수십 줄이라, 그대로 주면 LLM 이 그걸 항목으로 적었다.
+  // 위치로 커서를 옮기는 데는 추리기 전 글자를 그대로 쓴다 (이건 프롬프트에만 쓴다).
+  const OCR_PROMPT_MAX = 20;
+  // 캐릭터 정보 칸의 능력치 이름 — 짧아서 항목처럼 보이지만 고를 수 있는 게 아니다
+  const STAT_WORDS = new Set(
+    ["체력", "최대 체력", "회복", "방어력", "이동속도", "이동 속도", "피해량", "공격 범위", "범위",
+     "투사체 속도", "지속시간", "투사체 수", "쿨타임", "행운", "성장", "탐욕", "저주", "자석", "부활"].map(ocrNorm)
+  );
+  function optionLike(lines) {
+    return (lines || [])
+      .filter((l) => {
+        const t = String(l.text || "").trim();
+        const n = ocrNorm(t);
+        if (!n || n.length > 16) return false;                  // 긴 줄은 설명
+        if (STAT_WORDS.has(n)) return false;                    // 능력치 이름
+        if (/^[0-9\s.,:%+\-xX×/()]+$/.test(t)) return false;   // 숫자·수치만 ("120", "+10%")
+        if (/[:：%]/.test(t)) return false;                      // "체력: 120", "피해량 +10%"
+        return true;
+      })
+      .sort((a, b) => (b.h || 0) - (a.h || 0))                  // 큰 글자(버튼·제목)부터 남긴다
+      .slice(0, OCR_PROMPT_MAX)
+      .sort((a, b) => a.y - b.y || a.x - b.x);
   }
 
   // 화면에 이 글자가 보이면 그 화면이다. 위에 있는 줄부터 본다 — 레벨업이 제일 확실하고,
@@ -2375,12 +2398,13 @@ Answer with ONLY a JSON object, nothing else:
     );
     if (res.error) return null;
     const seen = parseJson(res.text);
-    const options = (Array.isArray(seen?.options) ? seen.options : [])
+    const raw = (Array.isArray(seen?.options) ? seen.options : [])
       .map((x) => String(x || "").trim().slice(0, 24))
       .filter(Boolean);
-    const sel = indexOfOption(options, seen?.selected);
-    if (!options.length || sel < 0) return null;
-    return { options, sel, layout: "vertical", columns: 1 };
+    const sel = indexOfOption(raw, seen?.selected);
+    if (!raw.length || sel < 0) return null;
+    // 처음 읽을 때와 같은 방법으로 이름을 고쳐야 목표 카드를 목록에서 다시 찾을 수 있다
+    return { options: fixCardNames(raw, ocr?.lines).names, sel, layout: "vertical", columns: 1 };
   }
 
   function noteReadConfirm(item, conf) {
@@ -2539,7 +2563,7 @@ The bot's owner is away from the PC and sent this instruction from their phone:
 
 Right now the bot is ${running ? "RUNNING (moving the character by itself)" : "STOPPED"}.
 The bot thinks this screen is: ${STATES[stableState] || stableState || "unknown"}.
-${ocrBlock(ocrLines)}
+${ocrBlock(optionLike(ocrLines))}
 Choose exactly ONE action that carries out the instruction:
 - "stop"   : stop the bot (it releases all keys and does nothing until started again)
 - "start"  : start the bot again
@@ -2867,7 +2891,7 @@ Tell dead and revive apart by what is on offer, not by the words "you died":
 - Revive / Continue / resurrect, keeping the same run going  -> revive
 - Retry / Restart / Main Menu / Play Again, which would start a NEW run  -> dead
 - A results table with time, kills or gold, and no way to resume  -> dead
-${ocrBlock(ocrLines)}${regionBlock(null, gameRect, true)}${noteBlock()}
+${ocrBlock(optionLike(ocrLines))}${regionBlock(null, gameRect, true)}${noteBlock()}
 ${KOREAN_RULE}
 
 Answer with ONLY a JSON object, nothing else:
@@ -3044,6 +3068,10 @@ Answer with ONLY a JSON object, nothing else:
         const ocr = r.ocr?.length
           ? `<br /><span class="dim">　화면 글자(OCR): ${r.ocr.join(" / ")}${r.byOcr ? " — 카드 이름 전부 확인됨" : ""}</span>`
           : "";
+        const fixTxt = r.fixes?.length
+          ? '<br /><span class="dim">　이름 고침: ' +
+            r.fixes.map((f) => f.from + " → <b>" + f.to + "</b> (" + f.by + ")").join(", ") + "</span>"
+          : "";
         const guideTxt = r.guide?.length
           ? `<br /><span class="dim">　공략: ${r.guide.map((g) => g.replace(/^- /, "")).join(" / ")}</span>`
           : "";
@@ -3054,6 +3082,7 @@ Answer with ONLY a JSON object, nothing else:
           `카드 ${(r.options || []).length}장: ${opts}${sel}${keys}${btn}` +
           second +
           ocr +
+          fixTxt +
           guideTxt +
           (r.why ? `<br /><span class="dim">　${r.why}</span>` : "") +
           "</div>"
@@ -3119,7 +3148,7 @@ Report ONLY what you can see. Do not decide anything, do not choose anything.
    options list. Exactly one option looks different: brighter fill, thicker or lighter
    border, larger text, an animated or raised portrait, or an arrow/cursor next to it.
    Look carefully — this decides how many steps the cursor has to move.
-${ocrBlock(ocrLines, "Every button or menu entry among these lines (for example START / 시작) is a selectable option — include it. Copy option names with these spellings when they match.")}
+${ocrBlock(optionLike(ocrLines), "Use these to spell option labels exactly and so you do not miss a button such as START / 시작. Not every line is an option — titles, names in an info panel, numbers and descriptions are not.")}
 ${regionBlock(state, gameRect)}${noteBlock()}
 ${KOREAN_RULE.replace('"why"', '"sees"')}
 
@@ -3148,7 +3177,8 @@ Answer with ONLY a JSON object, nothing else:
     const triedBlock = tried
       ? "\nAlready tried on this screen, and the screen did NOT move on:\n" + tried + "\nDo not choose those again.\n"
       : "";
-    const facts = rosterFor(options);
+    // 목표가 캐릭터·무기·맵을 말할 때만 붙인다. "그냥 시작해서 오래 버티기" 면 필요 없는 정보다.
+    const facts = goalWantsRoster(goalText()) ? rosterFor(options) : [];
     const rosterBlock = facts.length
       ? "\nFacts about these options from a game guide (use them if the instruction mentions a weapon," +
         " a character or a stage):\n" + facts.join("\n") + "\n"
@@ -3429,6 +3459,109 @@ Answer with ONLY a JSON object, nothing else:
     return roster.stages.find((st) => sameName(text, st.name) || (st.en && sameName(text, st.en))) || null;
   }
 
+  // ---- 아이템 사전: 잘못 읽은 카드 이름을 실제 이름으로 바로잡는다 ----
+  // gemma3 는 작은 한글 게임 글씨를 흐릿하면 아는 단어로 채우고, OCR 은 픽셀 글씨에서 한두 글자를
+  // 틀린다 ("시금치" → "시급치"). 예전에는 "화면 글자에 있나" 만 봤지 이름을 고치지는 않았다.
+  // 나무위키 무기·장신구·진화 무기 이름(game/knowledge/vs_items.json)과 비슷한 정도를 재서 고친다.
+  let itemDict = [];
+  fetch("knowledge/vs_items.json", { cache: "no-store" })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d) => {
+      if (d && Array.isArray(d.items)) itemDict = d.items.map((it) => ({ ...it, j: jamo(it.name) }));
+    })
+    .catch(() => {});
+
+  // 한글 음절을 자모로 푼다: "시금치" → ㅅㅣㄱㅡㅁㅊㅣ. 틀린 게 받침 하나면 음절로는 3글자 중 1글자
+  // 차이(67%)지만 자모로는 7개 중 1개 차이(86%)다. 한글 이름은 자모로 비교해야 제대로 가깝게 나온다.
+  const CHO = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
+  const JUNG = "ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ";
+  const JONG = ["", "ㄱ", "ㄲ", "ㄳ", "ㄴ", "ㄵ", "ㄶ", "ㄷ", "ㄹ", "ㄺ", "ㄻ", "ㄼ", "ㄽ", "ㄾ", "ㄿ", "ㅀ",
+    "ㅁ", "ㅂ", "ㅄ", "ㅅ", "ㅆ", "ㅇ", "ㅈ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ"];
+  function jamo(text) {
+    let out = "";
+    for (const ch of ocrNorm(text)) {
+      const c = ch.charCodeAt(0) - 0xac00;
+      out += c >= 0 && c < 11172 ? CHO[Math.floor(c / 588)] + JUNG[Math.floor((c % 588) / 28)] + JONG[c % 28] : ch;
+    }
+    return out;
+  }
+
+  // 카드 이름 옆에 붙어 읽히는 것들 ("마늘 새로운!", "채찍 레벨 3") — 떼고 비교한다
+  const NAME_TAILS = /\s*(새로운!?|NEW!?|레벨\s*:?\s*\d+|LV\.?\s*\d+|LEVEL\s*\d+)\s*$/i;
+
+  // 사전에서 가장 비슷한 이름 (자모 비교, 영어 이름도 본다). 두 번째로 비슷한 것과의 차이도 같이 준다.
+  function matchItem(text) {
+    const tries = [String(text || "").replace(NAME_TAILS, "").trim()];
+    const words = tries[0].split(/\s+/);
+    for (let k = words.length - 1; k >= 1; k--) tries.push(words.slice(0, k).join(" ")); // 뒤에 붙은 말 떼기
+    let best = null, bestS = 0, second = 0;
+    for (const it of itemDict) {
+      let sc = 0;
+      for (const t of tries) {
+        if (ocrNorm(t).length < 1) continue;
+        sc = Math.max(sc, similar(jamo(t), it.j), it.en ? similar(ocrNorm(t), ocrNorm(it.en)) : 0);
+      }
+      if (sc > bestS) { second = bestS; bestS = sc; best = it; }
+      else if (sc > second) second = sc;
+    }
+    return best ? { item: best, score: bestS, second } : null;
+  }
+
+  const SNAP_MIN = 0.72; // 이만큼은 비슷해야 고친다
+  const SNAP_GAP = 0.06; // 두 번째로 비슷한 이름보다 이만큼 앞서야 한다 — 헷갈리면 안 고친다
+  function snapItem(text) {
+    const m = matchItem(text);
+    if (!m) return null;
+    if (m.score >= 0.999 || (m.score >= SNAP_MIN && m.score - m.second >= SNAP_GAP)) {
+      return { name: m.item.name, score: m.score };
+    }
+    return null;
+  }
+
+  // LLM 이 읽은 카드 이름들을 사전과 화면 글자로 맞춘다.
+  //  1) 화면 글자 중 사전 이름과 아주 비슷한 줄 = 화면에 실제로 있는 카드 (위에서부터)
+  //  2) LLM 이름이 사전에서 그중 하나로 가면 → 그 이름 (철자만 고침)
+  //  3) 아니고 카드 장수가 같으면 → 같은 자리의 화면 카드 이름 (LLM 이 다른 이름을 지어냈다)
+  //  4) 그것도 아니면 → 사전에서 헷갈리지 않을 만큼 비슷한 이름, 없으면 그대로
+  function fixCardNames(names, ocrLines) {
+    const onScreen = [];
+    for (const l of [...(ocrLines || [])].sort((a, b) => a.y - b.y)) {
+      const sn = snapItem(l.text);
+      if (sn && sn.score >= 0.8 && !onScreen.includes(sn.name)) onScreen.push(sn.name);
+    }
+    const fixes = [];
+    const out = names.map((n, i) => {
+      const sn = snapItem(n);
+      if (sn && onScreen.includes(sn.name)) {
+        if (sn.name !== n) fixes.push({ from: n, to: sn.name, by: "화면 글자+사전" });
+        return sn.name;
+      }
+      if (onScreen.length === names.length && onScreen[i]) {
+        if (onScreen[i] !== n) fixes.push({ from: n, to: onScreen[i], by: "화면 글자 같은 자리" });
+        return onScreen[i];
+      }
+      if (sn) {
+        if (sn.name !== n) fixes.push({ from: n, to: sn.name, by: "사전" });
+        return sn.name;
+      }
+      return n;
+    });
+    return { names: out, fixes, onScreen };
+  }
+
+  // 목표 문장이 캐릭터·무기·맵 이야기를 하나
+  function goalWantsRoster(goal) {
+    const g = ocrNorm(goal);
+    if (!g) return false;
+    if (/캐릭터|무기|맵|스테이지|CHARACTER|WEAPON|STAGE|MAP/.test(g)) return true;
+    const named = (x) => x && ocrNorm(x).length >= 2 && g.includes(ocrNorm(x));
+    return (
+      roster.characters.some((c) => named(c.short) || named(c.name)) ||
+      roster.stages.some((st) => named(st.name)) ||
+      !!guide?.evolutions.some((e) => e.weapons.some(named))
+    );
+  }
+
   // 메뉴 항목 중 아는 캐릭터·스테이지에 대한 사실 몇 줄
   function rosterFor(options) {
     const lines = [];
@@ -3444,7 +3577,7 @@ Answer with ONLY a JSON object, nothing else:
       const st = findStage(o);
       if (st) lines.push(`- ${o}: 스테이지 · ${st.time || "?"}` + (st.group ? ` · ${st.group}` : ""));
     }
-    return lines.slice(0, 12);
+    return lines.slice(0, 8);
   }
 
   // 메뉴에서 엔터를 누르기 직전에 부른다. 고르는 게 캐릭터면(항목 이름이 캐릭터거나, 화면 글자에
@@ -3598,10 +3731,10 @@ Answer with ONLY a JSON object, nothing else:
       return null;
     }
     const seen = parseJson(seenRes.text);
-    const options = (Array.isArray(seen?.options) ? seen.options : [])
+    const rawOptions = (Array.isArray(seen?.options) ? seen.options : [])
       .map((x) => String(x || "").trim().slice(0, 24))
       .filter(Boolean);
-    if (!options.length) {
+    if (!rawOptions.length) {
       pushRead({
         at: new Date().toLocaleTimeString("ko-KR", { hour12: false }),
         options: [],
@@ -3613,9 +3746,13 @@ Answer with ONLY a JSON object, nothing else:
       logger.push('<span class="bad">카드를 못 읽었습니다 — 누르지 않고 기다립니다</span>');
       return null;
     }
+    // 읽은 이름을 아이템 사전과 화면 글자로 바로잡는다 ("시급치" → "시금치", 지어낸 이름 → 그 자리의 실제 카드)
+    const fixed = fixCardNames(rawOptions, ocrLines);
+    const options = fixed.names;
+
     // 읽은 이름이 OCR 글자 중에 있으면 실제로 화면에 있는 이름이다.
     // 전부 있으면 두 번 읽을 필요가 없다 (몇 초 아낀다).
-    const ocrHit = options.map((o) => ocrFind(o, ocrLines));
+    const ocrHit = options.map((o) => fixed.onScreen.includes(o) || ocrFind(o, ocrLines));
     const byOcr = ocrLines.length > 0 && ocrHit.every(Boolean);
 
     // 아니면 한 번 더 읽혀 대조한다. 지어낸 이름은 매번 달라지고, 실제로 읽은 이름은 그대로다.
@@ -3628,9 +3765,10 @@ Answer with ONLY a JSON object, nothing else:
         45000
       );
       const seen2 = seen2Res.error ? null : parseJson(seen2Res.text);
-      options2 = (Array.isArray(seen2?.options) ? seen2.options : [])
-        .map((x) => String(x || "").trim().slice(0, 24))
-        .filter(Boolean);
+      options2 = fixCardNames(
+        (Array.isArray(seen2?.options) ? seen2.options : []).map((x) => String(x || "").trim().slice(0, 24)).filter(Boolean),
+        ocrLines
+      ).names;
     }
 
     // 두 판독이 딴판인 자리는 못 읽은 것으로 본다.
@@ -3665,7 +3803,8 @@ Answer with ONLY a JSON object, nothing else:
       .map((x) => String(x || "").trim().slice(0, 20))
       .filter(Boolean);
 
-    const si = indexOfOption(options, seen.selected);
+    let si = indexOfOption(rawOptions, seen.selected);
+    if (si < 0) si = indexOfOption(options, seen.selected);
     if (si < 0) {
       logger.push('<span class="bad">지금 뭐가 선택돼 있는지 못 읽었습니다 — 누르지 않고 기다립니다</span>');
       return null;
@@ -3682,6 +3821,7 @@ Answer with ONLY a JSON object, nothing else:
         buttons,
         selected: options[si],
         ocr: ocrLines.map((l) => l.text),
+        fixes: fixed.fixes,
         why: `두 번 읽은 결과가 달라 믿을 수 없습니다 (${bad})`,
         imgW: crop.w, imgH: crop.h, tight: !!cardRect, test: !!testImage,
       });
@@ -3732,6 +3872,7 @@ Answer with ONLY a JSON object, nothing else:
       keys,
       ocr: ocrLines.map((l) => l.text),
       byOcr,
+      fixes: fixed.fixes,
       guide: guideLines,
       why,
       imgW: crop.w,
@@ -4231,7 +4372,7 @@ Answer with ONLY a JSON object, nothing else:
       logs: [...document.querySelectorAll("#vsLog > *")].slice(0, 30).map((e) => e.textContent),
       reads: readLog.slice(-3).reverse().map((r) => ({
         at: r.at, options: r.options, picked: r.picked, why: r.why,
-        selected: r.selected, nav: r.nav, keys: r.keys, byOcr: r.byOcr,
+        selected: r.selected, nav: r.nav, keys: r.keys, byOcr: r.byOcr, fixes: r.fixes,
       })),
     };
   }

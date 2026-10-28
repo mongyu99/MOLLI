@@ -1,0 +1,2032 @@
+{
+ "source": "나무위키 'Vampire Survivors/아이템/일반 무기', '…/장신구', '…/진화 무기' 문서의 이름",
+ "license": "CC BY-NC-SA 2.0 KR (나무위키). 이름만 옮겼다.",
+ "fetched": "2026-09-26",
+ "items": [
+  {
+   "name": "108 보체",
+   "en": "108 Bocce",
+   "kind": "weapon",
+   "group": "Legacy of the Moonspell"
+  },
+  {
+   "name": "C-U-레이저",
+   "en": "C-U-Laser",
+   "kind": "weapon",
+   "group": "Operation Guns"
+  },
+  {
+   "name": "Phas3r",
+   "en": "Phas3r",
+   "kind": "weapon",
+   "group": "Extra"
+  },
+  {
+   "name": "가에야의 시선",
+   "en": "Gaze of Gaea",
+   "kind": "weapon",
+   "group": "Extra"
+  },
+  {
+   "name": "검은 드릴",
+   "en": "Shadow Pinion",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "검은 비둘기",
+   "en": "Ebony Wings",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "게일 포스",
+   "en": "Gale Force",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "고스의 화살",
+   "en": "Arrow of Goth",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "곡선 단검",
+   "en": "Curved Knife",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "과학 암석",
+   "en": "Science Rocks",
+   "kind": "weapon",
+   "group": "Emergency_Meeting"
+  },
+  {
+   "name": "광산수레",
+   "en": "",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "귀소 실패",
+   "en": "Homing Miss",
+   "kind": "weapon",
+   "group": "Operation Guns"
+  },
+  {
+   "name": "그랜드 크로스",
+   "en": "Grand Cross",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "그로스 미셸",
+   "en": "Gros Michel",
+   "kind": "weapon",
+   "group": "Ante Chamber"
+  },
+  {
+   "name": "그림자 시종",
+   "en": "Shadow Servant",
+   "kind": "weapon",
+   "group": "Tides of the Foscari"
+  },
+  {
+   "name": "글레이브",
+   "en": "Glaive",
+   "kind": "weapon",
+   "group": "Emerald Diorama"
+  },
+  {
+   "name": "글로버스",
+   "en": "Globus",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "다이버 광산",
+   "en": "Diver Mines",
+   "kind": "weapon",
+   "group": "Operation Guns"
+  },
+  {
+   "name": "다크 리프트",
+   "en": "Dark Rift",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "단검",
+   "en": "Knife",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "단총",
+   "en": "Short Gun",
+   "kind": "weapon",
+   "group": "Operation Guns"
+  },
+  {
+   "name": "데스의 아니마",
+   "en": "Anima of Death",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "덱스트로 쿠스토스",
+   "en": "Dextro Custos",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "도끼",
+   "en": "Axe",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "도미누스의 고뇌",
+   "en": "Dominus Agony",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "도미누스의 분노",
+   "en": "Dominus Anger",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "도미누스의 증오",
+   "en": "Dominus Hatred",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "드라큘라의 아니마",
+   "en": "Anima of Dracula",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "드래곤 워터 채찍",
+   "en": "Dragon Water Whip",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "라 로바",
+   "en": "La Robba",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "레이징 파이어",
+   "en": "Raging Fire",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "레펙시오",
+   "en": "Refectio",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "록 라이엇",
+   "en": "Rock Riot",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "루미나시오",
+   "en": "Luminatio",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "룬트레이서",
+   "en": "Runetracer",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "마기 스톤",
+   "en": "Magi-Stone",
+   "kind": "weapon",
+   "group": "Extra"
+  },
+  {
+   "name": "마나의 노래",
+   "en": "Song Of Mana",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "마녀의 고양이",
+   "en": "Gatti Amari",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "마늘",
+   "en": "Garlic",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "마법 지팡이",
+   "en": "Magic Wand",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "마법주문 두루마리",
+   "en": "Spellstring",
+   "kind": "weapon",
+   "group": "Tides of the Foscari"
+  },
+  {
+   "name": "마법주문 유창본",
+   "en": "SpellStream",
+   "kind": "weapon",
+   "group": "Tides of the Foscari"
+  },
+  {
+   "name": "마법주문 전능본",
+   "en": "SpellStrike",
+   "kind": "weapon",
+   "group": "Tides of the Foscari"
+  },
+  {
+   "name": "마이오 리프트",
+   "en": "Myo Lift",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "만족할 줄 모르죠",
+   "en": "Insatiable",
+   "kind": "weapon",
+   "group": "Tides of the Foscari"
+  },
+  {
+   "name": "메탈 클로",
+   "en": "Metal Claw",
+   "kind": "weapon",
+   "group": "Operation Guns"
+  },
+  {
+   "name": "모닝 스타",
+   "en": "Morning Star",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "모자",
+   "en": "Hats",
+   "kind": "weapon",
+   "group": "Emergency_Meeting"
+  },
+  {
+   "name": "무기 파워업",
+   "en": "",
+   "kind": "weapon",
+   "group": "진화 조합에서"
+  },
+  {
+   "name": "문장",
+   "en": "Coat of Arms",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "밀레 볼레 블루",
+   "en": "Mille Bolle Blu",
+   "kind": "weapon",
+   "group": "Legacy of the Moonspell"
+  },
+  {
+   "name": "발만웨이",
+   "en": "Valmanway",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "밤 소환",
+   "en": "Summon Night",
+   "kind": "weapon",
+   "group": "Legacy of the Moonspell"
+  },
+  {
+   "name": "밤의 검",
+   "en": "Night Sword",
+   "kind": "weapon",
+   "group": "Legacy of the Moonspell"
+  },
+  {
+   "name": "번개 반지",
+   "en": "Lightning Ring",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "벨나데스의 주문서",
+   "en": "Belnades Spellbook",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "별 도리깨",
+   "en": "Star Flail",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "불로바",
+   "en": "Bullova",
+   "kind": "weapon",
+   "group": "Emerald Diorama"
+  },
+  {
+   "name": "불의 지팡이",
+   "en": "Fire Wand",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "불타는 알루카드",
+   "en": "Burning Alcarde",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "블러드 스타",
+   "en": "Sanguine Star",
+   "kind": "weapon",
+   "group": "Emerald Diorama"
+  },
+  {
+   "name": "블레이드 석궁",
+   "en": "Blade Crossbow",
+   "kind": "weapon",
+   "group": "Operation Guns"
+  },
+  {
+   "name": "비부티 채찍",
+   "en": "Vibhuti Whip",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "빙검",
+   "en": "Icebrand",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "뼈",
+   "en": "Bone",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "사계절",
+   "en": "Four Seasons",
+   "kind": "weapon",
+   "group": "Legacy of the Moonspell"
+  },
+  {
+   "name": "사역마 대장간",
+   "en": "Familiar Forge",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "사탕상자",
+   "en": "Candybox",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "산타 재블린",
+   "en": "Santa Javelin",
+   "kind": "weapon",
+   "group": "Extra"
+  },
+  {
+   "name": "색즉시공 채찍",
+   "en": "Vanitas Whip",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "생명 징후 스캔",
+   "en": "Lifesign Scan",
+   "kind": "weapon",
+   "group": "Emergency_Meeting"
+  },
+  {
+   "name": "샤프 메롱",
+   "en": "Sharp Tongue",
+   "kind": "weapon",
+   "group": "Emergency_Meeting"
+  },
+  {
+   "name": "샤프트 구슬",
+   "en": "Shaft Orb",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "섬광의 화살",
+   "en": "Flash Arrow",
+   "kind": "weapon",
+   "group": "Tides of the Foscari"
+  },
+  {
+   "name": "성경",
+   "en": "King Bible",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "성수",
+   "en": "Santa Water",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "성스러운 바람",
+   "en": "Vento Sacro",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "세이버 기관총",
+   "en": "Saber Machine Gun",
+   "kind": "weapon",
+   "group": "Emerald Diorama"
+  },
+  {
+   "name": "센트럴리스 쿠스토스",
+   "en": "Centralis Custos",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "소닉 블룸",
+   "en": "Sonic Bloom",
+   "kind": "weapon",
+   "group": "Operation Guns"
+  },
+  {
+   "name": "소닉 질주",
+   "en": "Sonic Dash",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "소닉 채찍",
+   "en": "Sonic Whip",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "소드 브라더스",
+   "en": "Sword Brothers",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "소울 스틸",
+   "en": "Soul Steal",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "손 수류탄",
+   "en": "Hand Grenade",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "수리검",
+   "en": "Shuriken",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "수호 방패",
+   "en": "Guardian's Targe",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "슈퍼 미사일",
+   "en": "Super Missile",
+   "kind": "weapon",
+   "group": "Emerald Diorama"
+  },
+  {
+   "name": "스바로크 동상",
+   "en": "Svarog Statue",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "스펙트랄 소드",
+   "en": "Spectral Sword",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "스프레드 샷",
+   "en": "Spread Shot",
+   "kind": "weapon",
+   "group": "Operation Guns"
+  },
+  {
+   "name": "스플래셔",
+   "en": "Splashers",
+   "kind": "weapon",
+   "group": "Emerald Diorama"
+  },
+  {
+   "name": "스피릿 토네이도 소환",
+   "en": "Summon Spirit Tornado",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "승리의 검",
+   "en": "Victory Sword",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "시곗바늘",
+   "en": "Clock Lancet",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "시니스트로 쿠스토스",
+   "en": "Sinestro Custos",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "신고",
+   "en": "",
+   "kind": "weapon",
+   "group": "진화 조합에서"
+  },
+  {
+   "name": "신고!",
+   "en": "Report!",
+   "kind": "weapon",
+   "group": "Emergency_Meeting"
+  },
+  {
+   "name": "신기루 로브",
+   "en": "Mirage Robe",
+   "kind": "weapon",
+   "group": "Legacy of the Moonspell"
+  },
+  {
+   "name": "실버 리볼버",
+   "en": "",
+   "kind": "weapon",
+   "group": "진화 조합에서"
+  },
+  {
+   "name": "십자가",
+   "en": "Cross",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "아누라",
+   "en": "Anura",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "아르마 디오",
+   "en": "Arma Dio",
+   "kind": "weapon",
+   "group": "Extra"
+  },
+  {
+   "name": "아이스 팡",
+   "en": "Ice Fang",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "아이언 볼",
+   "en": "Iron Ball",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "아이언 실드",
+   "en": "Iron Shield",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "아쿠아존",
+   "en": "Acquazzone",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "알루카드 창",
+   "en": "Alucard Spear",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "알루카트 스워브",
+   "en": "Alucart Sworb",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "에메랄드 휴거",
+   "en": "Emerald Rapture",
+   "kind": "weapon",
+   "group": "Emerald Diorama"
+  },
+  {
+   "name": "에보니 디아볼로그",
+   "en": "Ebony Diabologue",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "에스키치버",
+   "en": "Eskizzibur",
+   "kind": "weapon",
+   "group": "Tides of the Foscari"
+  },
+  {
+   "name": "에잇 더 스패로우",
+   "en": "Eight The Sparrow",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "에피 헤드",
+   "en": "Epi Head",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "엔도 기어",
+   "en": "Endo Gears",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "연금술 채찍",
+   "en": "Alchemy Whip",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "오라블라스트",
+   "en": "Aura Blast",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "오락가락 환풍구",
+   "en": "Just Vent",
+   "kind": "weapon",
+   "group": "Emergency_Meeting"
+  },
+  {
+   "name": "오망성",
+   "en": "Pentagram",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "옵티컬 샷",
+   "en": "Optical Shot",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "와인 잔",
+   "en": "Wine Glass",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "움브라",
+   "en": "Umbra",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "원반",
+   "en": "Discus",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "월계수",
+   "en": "Laurel",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "위대한 기념제",
+   "en": "Greatest Jubilee",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "윈드 채찍",
+   "en": "Wind Whip",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "유리 판당고",
+   "en": "Glass Fandango",
+   "kind": "weapon",
+   "group": "Extra"
+  },
+  {
+   "name": "은색 리볼버",
+   "en": "Silver Revolver",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "은색 바람",
+   "en": "Silver Wind",
+   "kind": "weapon",
+   "group": "Legacy of the Moonspell"
+  },
+  {
+   "name": "이글 건",
+   "en": "Eagle Gun",
+   "kind": "weapon",
+   "group": "Emerald Diorama"
+  },
+  {
+   "name": "인페르놀라트로",
+   "en": "Infernolatro",
+   "kind": "weapon",
+   "group": "Ante Chamber"
+  },
+  {
+   "name": "잘못된 주문의 불꽃",
+   "en": "Flames of Misspell",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "장총",
+   "en": "Long Gun",
+   "kind": "weapon",
+   "group": "Operation Guns"
+  },
+  {
+   "name": "저세상 번개",
+   "en": "Unearthly Bolt",
+   "kind": "weapon",
+   "group": "Extra"
+  },
+  {
+   "name": "정령 반지",
+   "en": "Spirit Rings",
+   "kind": "weapon",
+   "group": "Emerald Diorama"
+  },
+  {
+   "name": "정령 소환",
+   "en": "Summon Spirit",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "제트 블랙 채찍",
+   "en": "Jet Black Whip",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "직관",
+   "en": "Intuition",
+   "kind": "weapon",
+   "group": "Emerald Diorama"
+  },
+  {
+   "name": "채찍",
+   "en": "Whip",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "천상의 꽃",
+   "en": "Celestial Dusting",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "천체 부스터",
+   "en": "Celestial Booster",
+   "kind": "weapon",
+   "group": "Ante Chamber"
+  },
+  {
+   "name": "철퇴",
+   "en": "Mace",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "체리폭탄",
+   "en": "Cherry Bomb",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "초월 불가",
+   "en": "Unsurpassed",
+   "kind": "weapon",
+   "group": "Extra"
+  },
+  {
+   "name": "총기",
+   "en": "Firearm",
+   "kind": "weapon",
+   "group": "Operation Guns"
+  },
+  {
+   "name": "카이저 너클",
+   "en": "Kaiser Knuckle",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "케레멧 버블",
+   "en": "Keremet Bubbles",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "콘포데레",
+   "en": "Confodere",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "쿠쿠리",
+   "en": "Khukuri",
+   "kind": "weapon",
+   "group": "Emerald Diorama"
+  },
+  {
+   "name": "킥",
+   "en": "Kick",
+   "kind": "weapon",
+   "group": "Emerald Diorama"
+  },
+  {
+   "name": "타운 소드",
+   "en": "Town Sword",
+   "kind": "weapon",
+   "group": "Emerald Diorama"
+  },
+  {
+   "name": "탄약 아팔레트",
+   "en": "Ammo Appalate",
+   "kind": "weapon",
+   "group": "Extra"
+  },
+  {
+   "name": "톤네",
+   "en": "Tonne",
+   "kind": "weapon",
+   "group": "Extra"
+  },
+  {
+   "name": "톤네이도",
+   "en": "Tonnado",
+   "kind": "weapon",
+   "group": "Extra"
+  },
+  {
+   "name": "톤노 수비토",
+   "en": "Tonno Subito",
+   "kind": "weapon",
+   "group": "Extra"
+  },
+  {
+   "name": "톤노디오",
+   "en": "Tonn'oddeo",
+   "kind": "weapon",
+   "group": "Extra"
+  },
+  {
+   "name": "톤노모토",
+   "en": "Tonn'omoto",
+   "kind": "weapon",
+   "group": "Extra"
+  },
+  {
+   "name": "투창",
+   "en": "Javelin",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "튀르핑",
+   "en": "Tyrfing",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "트라이던트",
+   "en": "Trident",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "트롤 폭탄",
+   "en": "Troll Bomb",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "트윈 드래곤",
+   "en": "Twin Dragon",
+   "kind": "weapon",
+   "group": "Emerald Diorama"
+  },
+  {
+   "name": "파코 바틸리아",
+   "en": "Pako Battiliar",
+   "kind": "weapon",
+   "group": "Extra"
+  },
+  {
+   "name": "파티 폭죽",
+   "en": "Party Popper",
+   "kind": "weapon",
+   "group": "Tides of the Foscari"
+  },
+  {
+   "name": "파편 파괴",
+   "en": "Clear Debris",
+   "kind": "weapon",
+   "group": "Emergency_Meeting"
+  },
+  {
+   "name": "팔찌",
+   "en": "Bracelet",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "펀치",
+   "en": "Punch",
+   "kind": "weapon",
+   "group": "Emerald Diorama"
+  },
+  {
+   "name": "페리 진자",
+   "en": "Peri Pendulum",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "펜신 파차",
+   "en": "Penshin Fatcha",
+   "kind": "weapon",
+   "group": "Extra"
+  },
+  {
+   "name": "포켓 나이프",
+   "en": "Pocket Knife",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "풀구르",
+   "en": "Fulgur",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "프리즈마틱 미사일",
+   "en": "Prismatic Missile",
+   "kind": "weapon",
+   "group": "Tides of the Foscari"
+  },
+  {
+   "name": "프리즘 라스",
+   "en": "Prism Lass",
+   "kind": "weapon",
+   "group": "Operation Guns"
+  },
+  {
+   "name": "플랑베르주",
+   "en": "Flamberge",
+   "kind": "weapon",
+   "group": "Emerald Diorama"
+  },
+  {
+   "name": "플래티넘 채찍",
+   "en": "Platinum Whip",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "플뢰레",
+   "en": "Fleuret",
+   "kind": "weapon",
+   "group": "Emerald Diorama"
+  },
+  {
+   "name": "피보나치 스프리츠",
+   "en": "Fibonacci Spritz",
+   "kind": "weapon",
+   "group": "Ante Chamber"
+  },
+  {
+   "name": "피에라 데 투펠로",
+   "en": "Phiera Der Tuphello",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "하얀 비둘기",
+   "en": "Peachone",
+   "kind": "weapon",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "하이드로 스톰",
+   "en": "Hydro Storm",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "행운의 카드긁기",
+   "en": "Lucky Swipe",
+   "kind": "weapon",
+   "group": "Emergency_Meeting"
+  },
+  {
+   "name": "헥스",
+   "en": "Hex",
+   "kind": "weapon",
+   "group": "Ode to Castlevania"
+  },
+  {
+   "name": "혼돈의 룬",
+   "en": "Chaos Rune",
+   "kind": "weapon",
+   "group": "Extra"
+  },
+  {
+   "name": "갑옷",
+   "en": "Armor",
+   "kind": "passive",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "검은 심장",
+   "en": "Hollow Heart",
+   "kind": "passive",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "금 반지",
+   "en": "Gold Ring",
+   "kind": "passive",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "날개",
+   "en": "Wings",
+   "kind": "passive",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "돌가면",
+   "en": "Stone Mask",
+   "kind": "passive",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "매혹구",
+   "en": "Attractorb",
+   "kind": "passive",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "미니 과학자",
+   "en": "Mini Scientist",
+   "kind": "passive",
+   "group": "Emergency Meeting"
+  },
+  {
+   "name": "미니 기술자",
+   "en": "Mini Engineer",
+   "kind": "passive",
+   "group": "Emergency Meeting"
+  },
+  {
+   "name": "미니 말",
+   "en": "Mini Horse",
+   "kind": "passive",
+   "group": "Emergency Meeting"
+  },
+  {
+   "name": "미니 보호자",
+   "en": "Mini Guardian",
+   "kind": "passive",
+   "group": "Emergency Meeting"
+  },
+  {
+   "name": "미니 유령",
+   "en": "Mini Ghost",
+   "kind": "passive",
+   "group": "Emergency Meeting"
+  },
+  {
+   "name": "미니 임포스터",
+   "en": "Mini Impostor",
+   "kind": "passive",
+   "group": "Emergency Meeting"
+  },
+  {
+   "name": "미니 크루원",
+   "en": "Mini Crewmate",
+   "kind": "passive",
+   "group": "Emergency Meeting"
+  },
+  {
+   "name": "미니 형상 변환자",
+   "en": "Mini Shapeshifter",
+   "kind": "passive",
+   "group": "Emergency Meeting"
+  },
+  {
+   "name": "미치광이의 두개골",
+   "en": "Skull O'Maniac",
+   "kind": "passive",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "복제 반지",
+   "en": "Duplicator",
+   "kind": "passive",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "붉은 심장",
+   "en": "Pummarola",
+   "kind": "passive",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "빈 책",
+   "en": "Empty Tome",
+   "kind": "passive",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "시금치",
+   "en": "Spinach",
+   "kind": "passive",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "아카데미 배지",
+   "en": "Academy Badge",
+   "kind": "passive",
+   "group": "Tides of the Foscari"
+  },
+  {
+   "name": "왕관",
+   "en": "Crown",
+   "kind": "passive",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "우 메탈리오",
+   "en": "Metaglio Right",
+   "kind": "passive",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "은 반지",
+   "en": "Silver Ring",
+   "kind": "passive",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "좌 메탈리오",
+   "en": "Metaglio Left",
+   "kind": "passive",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "주문속박기",
+   "en": "Spellbinder",
+   "kind": "passive",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "촛대",
+   "en": "Candelabrador",
+   "kind": "passive",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "카로마의 마나",
+   "en": "",
+   "kind": "passive",
+   "group": "Extra"
+  },
+  {
+   "name": "클로버",
+   "en": "Clover",
+   "kind": "passive",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "토로나의 상자",
+   "en": "Torrona's Box",
+   "kind": "passive",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "티라미수",
+   "en": "",
+   "kind": "passive",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "파마산 보호구",
+   "en": "",
+   "kind": "passive",
+   "group": "Extra"
+  },
+  {
+   "name": "팔 보호대",
+   "en": "Bracer",
+   "kind": "passive",
+   "group": "Version 1.0"
+  },
+  {
+   "name": "9번째 서클",
+   "en": "Ninth Circle",
+   "kind": "evolved"
+  },
+  {
+   "name": "BFC2000-AD",
+   "en": "BFC2000-AD",
+   "kind": "evolved"
+  },
+  {
+   "name": "Fire-L3GS",
+   "en": "Fire-L3GS",
+   "kind": "evolved"
+  },
+  {
+   "name": "Photonstorm",
+   "en": "Photonstorm",
+   "kind": "evolved"
+  },
+  {
+   "name": "RPG",
+   "en": "The RPG",
+   "kind": "evolved"
+  },
+  {
+   "name": "Zweihander",
+   "en": "Zweihander",
+   "kind": "evolved"
+  },
+  {
+   "name": "가에야의 품",
+   "en": "Embrace of Gaea",
+   "kind": "evolved"
+  },
+  {
+   "name": "갈라틴",
+   "en": "Galatyn",
+   "kind": "evolved"
+  },
+  {
+   "name": "게카비진",
+   "en": "Gekkabijin",
+   "kind": "evolved"
+  },
+  {
+   "name": "고다이 셔플",
+   "en": "Godai Shuffle",
+   "kind": "evolved"
+  },
+  {
+   "name": "공중어뢰",
+   "en": "Atmo-Torpedo",
+   "kind": "evolved"
+  },
+  {
+   "name": "교차된 전선",
+   "en": "Crossed Wires",
+   "kind": "evolved"
+  },
+  {
+   "name": "구난 볼",
+   "en": "Wrecking Ball",
+   "kind": "evolved"
+  },
+  {
+   "name": "궁니르 수리스",
+   "en": "Gungnir-Souris",
+   "kind": "evolved"
+  },
+  {
+   "name": "금빛 손",
+   "en": "Gilded Hand",
+   "kind": "evolved"
+  },
+  {
+   "name": "긴급회의",
+   "en": "Emergency Meeting",
+   "kind": "evolved"
+  },
+  {
+   "name": "깃털 창",
+   "en": "Feather Spear",
+   "kind": "evolved"
+  },
+  {
+   "name": "나인페르노",
+   "en": "NaneInferno",
+   "kind": "evolved"
+  },
+  {
+   "name": "니테스코",
+   "en": "Nitesco",
+   "kind": "evolved"
+  },
+  {
+   "name": "다단 미사일",
+   "en": "Multistage Missiles",
+   "kind": "evolved"
+  },
+  {
+   "name": "다이버전스",
+   "en": "Divergence",
+   "kind": "evolved"
+  },
+  {
+   "name": "다이즈 아이라",
+   "en": "Dies Irae",
+   "kind": "evolved"
+  },
+  {
+   "name": "다크 아이언 실드",
+   "en": "Dark Iron Shield",
+   "kind": "evolved"
+  },
+  {
+   "name": "다크 프로가모포시스",
+   "en": "Dark Frogamorphosis",
+   "kind": "evolved"
+  },
+  {
+   "name": "대학",
+   "en": "Universitas",
+   "kind": "evolved"
+  },
+  {
+   "name": "데이브레이커 팁",
+   "en": "Daybreaker Tip",
+   "kind": "evolved"
+  },
+  {
+   "name": "드레스 검",
+   "en": "Dress Sword",
+   "kind": "evolved"
+  },
+  {
+   "name": "라피두스 피오",
+   "en": "Rapidus Fio",
+   "kind": "evolved"
+  },
+  {
+   "name": "라피스트 테피스토",
+   "en": "Lapiste Tepisto",
+   "kind": "evolved"
+  },
+  {
+   "name": "레지오네어",
+   "en": "Legionnaire",
+   "kind": "evolved"
+  },
+  {
+   "name": "로드스타",
+   "en": "Lordstar",
+   "kind": "evolved"
+  },
+  {
+   "name": "로열 플러시",
+   "en": "Royal Flush",
+   "kind": "evolved"
+  },
+  {
+   "name": "로켓 과학",
+   "en": "Rocket Science",
+   "kind": "evolved"
+  },
+  {
+   "name": "로헨그린",
+   "en": "Lohengrin",
+   "kind": "evolved"
+  },
+  {
+   "name": "롱 이누스",
+   "en": "Long Inus",
+   "kind": "evolved"
+  },
+  {
+   "name": "루미네어",
+   "en": "Luminaire",
+   "kind": "evolved"
+  },
+  {
+   "name": "룬 검",
+   "en": "Rune Sword",
+   "kind": "evolved"
+  },
+  {
+   "name": "마력의 결정체",
+   "en": "Mannajja",
+   "kind": "evolved"
+  },
+  {
+   "name": "마법주문 통합본",
+   "en": "SpellStrom",
+   "kind": "evolved"
+  },
+  {
+   "name": "마조 파밀리아",
+   "en": "Mazo Familiar",
+   "kind": "evolved"
+  },
+  {
+   "name": "매혹의 달",
+   "en": "Gorgeous Moon",
+   "kind": "evolved"
+  },
+  {
+   "name": "멜리오 콘포데레",
+   "en": "Melio Confodere",
+   "kind": "evolved"
+  },
+  {
+   "name": "모르메길 팁",
+   "en": "Mormegil Tip",
+   "kind": "evolved"
+  },
+  {
+   "name": "무라마사",
+   "en": "Muramasa",
+   "kind": "evolved"
+  },
+  {
+   "name": "무한 회랑",
+   "en": "Infinite Corridor",
+   "kind": "evolved"
+  },
+  {
+   "name": "문 로드",
+   "en": "Moon Rod",
+   "kind": "evolved"
+  },
+  {
+   "name": "밀리어네어",
+   "en": "Millionaire",
+   "kind": "evolved"
+  },
+  {
+   "name": "밀리언 컷",
+   "en": "Million Cut",
+   "kind": "evolved"
+  },
+  {
+   "name": "발키리 터너",
+   "en": "Valkyrie Turner",
+   "kind": "evolved"
+  },
+  {
+   "name": "밤 메아리",
+   "en": "Echo Night",
+   "kind": "evolved"
+  },
+  {
+   "name": "뱀파이어 킬러",
+   "en": "Vampire Killer",
+   "kind": "evolved"
+  },
+  {
+   "name": "번개 고리",
+   "en": "Thunder Loop",
+   "kind": "evolved"
+  },
+  {
+   "name": "볼 루미나시오",
+   "en": "Vol Luminatio",
+   "kind": "evolved"
+  },
+  {
+   "name": "볼 움브라",
+   "en": "Vol Umbra",
+   "kind": "evolved"
+  },
+  {
+   "name": "볼 콘포데레",
+   "en": "Vol Confodere",
+   "kind": "evolved"
+  },
+  {
+   "name": "부 루 불레",
+   "en": "Boo Roo Boolle",
+   "kind": "evolved"
+  },
+  {
+   "name": "부당한 방출",
+   "en": "Unjust Ejection",
+   "kind": "evolved"
+  },
+  {
+   "name": "불경한 기도문",
+   "en": "Unholy Vespers",
+   "kind": "evolved"
+  },
+  {
+   "name": "붉은장미 덩쿨",
+   "en": "Fuwalafuwaloo",
+   "kind": "evolved"
+  },
+  {
+   "name": "브와카 단검",
+   "en": "Bwaka Knife",
+   "kind": "evolved"
+  },
+  {
+   "name": "비너스 초승달",
+   "en": "Venus Crescent",
+   "kind": "evolved"
+  },
+  {
+   "name": "비자야 자매",
+   "en": "Vjaya Sisters",
+   "kind": "evolved"
+  },
+  {
+   "name": "빛의 정령",
+   "en": "Spirit of Light",
+   "kind": "evolved"
+  },
+  {
+   "name": "사악한 통치자",
+   "en": "Wicked Ruler",
+   "kind": "evolved"
+  },
+  {
+   "name": "살라멘더",
+   "en": "Salamender",
+   "kind": "evolved"
+  },
+  {
+   "name": "삼중 팔찌",
+   "en": "Tri-Bracelet",
+   "kind": "evolved"
+  },
+  {
+   "name": "성역",
+   "en": "Sanctuary",
+   "kind": "evolved"
+  },
+  {
+   "name": "세라픽 크라이",
+   "en": "Seraphic Cry",
+   "kind": "evolved"
+  },
+  {
+   "name": "소행성 파괴",
+   "en": "Clear Asteroids",
+   "kind": "evolved"
+  },
+  {
+   "name": "스타마짜",
+   "en": "Stamazza",
+   "kind": "evolved"
+  },
+  {
+   "name": "스텔라 블레이드",
+   "en": "Stellar Blade",
+   "kind": "evolved"
+  },
+  {
+   "name": "스피릿 토네이도 팁",
+   "en": "Spirit Tornado Tip",
+   "kind": "evolved"
+  },
+  {
+   "name": "시계 탑",
+   "en": "Clock Tower",
+   "kind": "evolved"
+  },
+  {
+   "name": "식사 티켓",
+   "en": "Meal Ticket",
+   "kind": "evolved"
+  },
+  {
+   "name": "신성한 비스트의 탑 실드",
+   "en": "Sacred Beasts Tower Shield",
+   "kind": "evolved"
+  },
+  {
+   "name": "신성한 지팡이",
+   "en": "Holy Wand",
+   "kind": "evolved"
+  },
+  {
+   "name": "썬더볼트 스피어",
+   "en": "Thunderbolt Spear",
+   "kind": "evolved"
+  },
+  {
+   "name": "아치 앵글",
+   "en": "Arch Angle",
+   "kind": "evolved"
+  },
+  {
+   "name": "악몽",
+   "en": "Nightmare",
+   "kind": "evolved"
+  },
+  {
+   "name": "알루카드 검",
+   "en": "Alucard Swords",
+   "kind": "evolved"
+  },
+  {
+   "name": "알루카드 쉴드",
+   "en": "Alucard Shield",
+   "kind": "evolved"
+  },
+  {
+   "name": "압력 포인트",
+   "en": "Pressure Point",
+   "kind": "evolved"
+  },
+  {
+   "name": "야규 수리검",
+   "en": "Yagyu Shuriken",
+   "kind": "evolved"
+  },
+  {
+   "name": "어두운 우주",
+   "en": "Negative Space",
+   "kind": "evolved"
+  },
+  {
+   "name": "어둠 환상",
+   "en": "Darkness Illusion",
+   "kind": "evolved"
+  },
+  {
+   "name": "에메랄드 웨이브",
+   "en": "Emerald Wave",
+   "kind": "evolved"
+  },
+  {
+   "name": "에스파타 로페라",
+   "en": "Espada Ropera",
+   "kind": "evolved"
+  },
+  {
+   "name": "에이서바투스",
+   "en": "Acerbatus",
+   "kind": "evolved"
+  },
+  {
+   "name": "영적 교란",
+   "en": "Spirit Disturbance",
+   "kind": "evolved"
+  },
+  {
+   "name": "영혼 포식자",
+   "en": "Soul Eater",
+   "kind": "evolved"
+  },
+  {
+   "name": "오라블러스터 팁",
+   "en": "Aurablaster Tip",
+   "kind": "evolved"
+  },
+  {
+   "name": "오피온",
+   "en": "Ophion",
+   "kind": "evolved"
+  },
+  {
+   "name": "웨이브 빔",
+   "en": "Wave Beam",
+   "kind": "evolved"
+  },
+  {
+   "name": "이중 팔찌",
+   "en": "Bi-Bracelet",
+   "kind": "evolved"
+  },
+  {
+   "name": "임포스메롱",
+   "en": "Impostongue",
+   "kind": "evolved"
+  },
+  {
+   "name": "잘뭣된 주문의 재",
+   "en": "Ashes of",
+   "kind": "evolved"
+  },
+  {
+   "name": "재앙의 고리",
+   "en": "Rings of Calamity",
+   "kind": "evolved"
+  },
+  {
+   "name": "전하의 힘",
+   "en": "Power of Sire",
+   "kind": "evolved"
+  },
+  {
+   "name": "절멸",
+   "en": "NO FUTURE",
+   "kind": "evolved"
+  },
+  {
+   "name": "정화자",
+   "en": "La Borra",
+   "kind": "evolved"
+  },
+  {
+   "name": "제트스트림",
+   "en": "Jetstream",
+   "kind": "evolved"
+  },
+  {
+   "name": "젬마 토르포",
+   "en": "Gemma Torpor",
+   "kind": "evolved"
+  },
+  {
+   "name": "조도르",
+   "en": "J'Odore",
+   "kind": "evolved"
+  },
+  {
+   "name": "주얼 건",
+   "en": "Jewel Gun",
+   "kind": "evolved"
+  },
+  {
+   "name": "주요한 해결책",
+   "en": "Sole Solution",
+   "kind": "evolved"
+  },
+  {
+   "name": "죽음의 나선",
+   "en": "Death Spiral",
+   "kind": "evolved"
+  },
+  {
+   "name": "죽음의 유산: 소울 리버",
+   "en": "Legacy of Death: Soul River",
+   "kind": "evolved"
+  },
+  {
+   "name": "진홍의 망토",
+   "en": "Crimson Shroud",
+   "kind": "evolved"
+  },
+  {
+   "name": "천 개의 칼날",
+   "en": "Thousand Edge",
+   "kind": "evolved"
+  },
+  {
+   "name": "천상의 검",
+   "en": "Heaven Sword",
+   "kind": "evolved"
+  },
+  {
+   "name": "천상의 장창",
+   "en": "Celestial Voulge",
+   "kind": "evolved"
+  },
+  {
+   "name": "초자연적 스캔",
+   "en": "Paranormal Scan",
+   "kind": "evolved"
+  },
+  {
+   "name": "총격전",
+   "en": "Gunastrophe",
+   "kind": "evolved"
+  },
+  {
+   "name": "추격형 블레이드",
+   "en": "Pursuant Blades",
+   "kind": "evolved"
+  },
+  {
+   "name": "축제의 바람",
+   "en": "Festive Winds",
+   "kind": "evolved"
+  },
+  {
+   "name": "카니지 하트",
+   "en": "Carnage Heart",
+   "kind": "evolved"
+  },
+  {
+   "name": "카디아 플레게톤",
+   "en": "Kardia Phlegeton",
+   "kind": "evolved"
+  },
+  {
+   "name": "캐번디시",
+   "en": "Cavendish",
+   "kind": "evolved"
+  },
+  {
+   "name": "케렘 모버스",
+   "en": "Keremet Morbus",
+   "kind": "evolved"
+  },
+  {
+   "name": "코키투스",
+   "en": "Cocytus",
+   "kind": "evolved"
+  },
+  {
+   "name": "크로스 크래셔 팁",
+   "en": "Cross Crasher Tip",
+   "kind": "evolved"
+  },
+  {
+   "name": "크리새그림 팁",
+   "en": "Crissaegrim Tip",
+   "kind": "evolved"
+  },
+  {
+   "name": "큰 퍼지 주먹",
+   "en": "Big Fuzzy Fist",
+   "kind": "evolved"
+  },
+  {
+   "name": "클레임 솔레",
+   "en": "Claimh Solais",
+   "kind": "evolved"
+  },
+  {
+   "name": "키라-스톤",
+   "en": "Kyra-Stones",
+   "kind": "evolved"
+  },
+  {
+   "name": "타임 워프",
+   "en": "Time Warp",
+   "kind": "evolved"
+  },
+  {
+   "name": "테네브리스 토니트러스",
+   "en": "Tenebris Tonitrus",
+   "kind": "evolved"
+  },
+  {
+   "name": "트라이앵글 킥",
+   "en": "Triangle Kick",
+   "kind": "evolved"
+  },
+  {
+   "name": "트리넘 커스토뎀",
+   "en": "Trinum Custodem",
+   "kind": "evolved"
+  },
+  {
+   "name": "파괴자",
+   "en": "Vandalier",
+   "kind": "evolved"
+  },
+  {
+   "name": "펜드래곤",
+   "en": "Pendragon",
+   "kind": "evolved"
+  },
+  {
+   "name": "폐렴 템페스타",
+   "en": "Pneuma Tempestas",
+   "kind": "evolved"
+  },
+  {
+   "name": "프로토타입 A",
+   "en": "Prototype A",
+   "kind": "evolved"
+  },
+  {
+   "name": "프로토타입 B",
+   "en": "Prototype B",
+   "kind": "evolved"
+  },
+  {
+   "name": "프로토타입 C",
+   "en": "Prototype C",
+   "kind": "evolved"
+  },
+  {
+   "name": "프론토 빔",
+   "en": "Pronto Beam",
+   "kind": "evolved"
+  },
+  {
+   "name": "피눈물",
+   "en": "Bloody Tears",
+   "kind": "evolved"
+  },
+  {
+   "name": "피에라지",
+   "en": "Phieraggi",
+   "kind": "evolved"
+  },
+  {
+   "name": "피의 성배",
+   "en": "Blood Chalice",
+   "kind": "evolved"
+  },
+  {
+   "name": "하이드로 펌프 클라이맥스",
+   "en": "Hydro Pump Climax",
+   "kind": "evolved"
+  },
+  {
+   "name": "하이드로스토머 팁",
+   "en": "Hydrostormer Tip",
+   "kind": "evolved"
+  },
+  {
+   "name": "하이페리온 바주카포",
+   "en": "Hyperion Bazooka",
+   "kind": "evolved"
+  },
+  {
+   "name": "헤카톤 기관총",
+   "en": "Hecaton Machine Gun",
+   "kind": "evolved"
+  },
+  {
+   "name": "헬파이어",
+   "en": "Hellfire",
+   "kind": "evolved"
+  },
+  {
+   "name": "호크윈드",
+   "en": "Falconwind",
+   "kind": "evolved"
+  },
+  {
+   "name": "흉포한 굶주림",
+   "en": "Vicious Hunger",
+   "kind": "evolved"
+  },
+  {
+   "name": "히드라 캐논",
+   "en": "Hydra Cannon",
+   "kind": "evolved"
+  }
+ ]
+}

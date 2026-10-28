@@ -271,6 +271,7 @@
         (r.selected ? " · 커서: " + r.selected : "") +
         (r.nav ? " · " + r.nav : r.keys && r.keys.length ? " · 누름: " + r.keys.join(" ") : "") +
         (r.byOcr ? " · 화면 글자로 이름 확인됨" : "") +
+        (r.fixes && r.fixes.length ? " · 이름 고침: " + r.fixes.map((f) => f.from + "→" + f.to).join(", ") : "") +
         (r.why ? " — " + r.why : "")
     ));
   }
