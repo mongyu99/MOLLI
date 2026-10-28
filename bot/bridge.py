@@ -64,6 +64,57 @@ def foreground_title() -> str:
     return buf.value
 
 
+def find_window(part: str):
+    """제목에 part 가 들어 있는 보이는 창 하나. 없으면 None."""
+    if not _user32 or not part:
+        return None
+    found = []
+
+    @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+    def each(hwnd, _):
+        if _user32.IsWindowVisible(hwnd):
+            n = _user32.GetWindowTextLengthW(hwnd)
+            buf = ctypes.create_unicode_buffer(n + 1)
+            _user32.GetWindowTextW(hwnd, buf, n + 1)
+            if part.lower() in buf.value.lower():
+                found.append(hwnd)
+                return False
+        return True
+
+    _user32.EnumWindows(each, 0)
+    return found[0] if found else None
+
+
+def bring_to_front(hwnd):
+    """윈도우는 백그라운드 프로세스가 창을 앞으로 꺼내는 걸 막는다.
+    Alt 를 한 번 눌렀다 떼면 '사용자 입력이 있었다'로 쳐서 허용된다."""
+    if _user32.GetForegroundWindow() == hwnd:
+        return
+    if _user32.IsIconic(hwnd):
+        _user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+    _user32.keybd_event(0x12, 0, 0, 0)
+    _user32.keybd_event(0x12, 0, 2, 0)
+    _user32.SetForegroundWindow(hwnd)
+    time.sleep(0.08)
+
+
+def window_client_rect(hwnd=None):
+    """창(기본은 맨 앞 창)의 내용 영역(제목줄·테두리 뺀 부분)을 화면 좌표 (x, y, w, h) 로. 모르면 None."""
+    if not _user32:
+        return None
+    hwnd = hwnd or _user32.GetForegroundWindow()
+    if not hwnd:
+        return None
+    from ctypes import wintypes
+
+    rc = wintypes.RECT()
+    if not _user32.GetClientRect(hwnd, ctypes.byref(rc)):
+        return None
+    pt = wintypes.POINT(0, 0)
+    _user32.ClientToScreen(hwnd, ctypes.byref(pt))
+    return pt.x, pt.y, rc.right, rc.bottom
+
+
 def window_ok() -> bool:
     if not WINDOW:
         return True  # 지정하지 않았으면 예전처럼 동작한다
@@ -117,6 +168,51 @@ class KeyPresser:
 
     def release_all(self):
         self.set_held(set())
+
+
+class MouseClicker:
+    """마우스 클릭. pydirectinput 의 moveTo 는 주 모니터 기준이라 모니터가 여러 대면 좌표가 튄다.
+    SetCursorPos 는 가상 화면 좌표를 그대로 받으므로 직접 부른다."""
+
+    DOWN_UP = {"left": (0x0002, 0x0004), "right": (0x0008, 0x0010)}
+
+    def __init__(self, live: bool):
+        self.live = live and _user32 is not None
+
+    def click(self, hwnd, fx: float, fy: float, button: str = "left"):
+        """fx, fy 는 창 내용 영역 안의 비율(0~1). 실제로 누른 화면 좌표를 돌려준다.
+        페이지에서 클릭하면 브라우저가 맨 앞이 되므로, 누르기 전에 대상 창을 앞으로 꺼낸다."""
+        if button not in self.DOWN_UP or not (0 <= fx <= 1 and 0 <= fy <= 1):
+            return None
+        if self.live:
+            bring_to_front(hwnd)
+        rect = window_client_rect(hwnd)
+        if not rect or rect[2] <= 0 or rect[3] <= 0:
+            return None
+        x = rect[0] + round(fx * (rect[2] - 1))
+        y = rect[1] + round(fy * (rect[3] - 1))
+        if self.live:
+            down, up = self.DOWN_UP[button]
+            _user32.SetCursorPos(x, y)
+            time.sleep(0.02)
+            _user32.mouse_event(down, 0, 0, 0, 0)
+            time.sleep(0.03)
+            _user32.mouse_event(up, 0, 0, 0, 0)
+        return x, y
+
+
+def watch_esc(on_esc):
+    """ESC 를 누르면 on_esc 를 부른다. 게임 창이 앞에 있어도 잡히도록 키 상태를 직접 읽는다.
+    봇은 ESC 를 절대 누르지 않으므로(ALLOWED_KEYS) 이건 항상 사람이 누른 것이다."""
+    if not _user32:
+        return
+    was = False
+    while True:
+        now = bool(_user32.GetAsyncKeyState(0x1B) & 0x8000)
+        if now and not was:
+            on_esc()
+        was = now
+        time.sleep(0.03)
 
 
 # LLM 을 어디에 물을지. 페이지와 주고받는 메시지(llm_models/llm_ask)는 같고, 여기서만 갈린다.
@@ -557,7 +653,27 @@ async def main_async(args):
     import websockets
 
     presser = KeyPresser(args.live)
-    state = {"last_msg": 0.0, "last_block_log": 0.0}
+    clicker = MouseClicker(args.live)
+    # halted: ESC 로 멈춘 상태. 페이지에서 '조작 시작'(resume)을 다시 누를 때까지 입력을 막는다.
+    state = {"last_msg": 0.0, "last_block_log": 0.0, "halted": False}
+    clients = set()
+    loop = asyncio.get_running_loop()
+
+    async def tell_all(obj):
+        for c in list(clients):
+            try:
+                await c.send(json.dumps(obj))
+            except Exception:
+                pass
+
+    def on_esc():
+        presser.release_all()
+        if not state["halted"]:
+            state["halted"] = True
+            print("[ESC] 조작을 멈췄습니다 — 페이지에서 '조작 시작'을 누르면 다시 움직입니다")
+        asyncio.run_coroutine_threadsafe(tell_all({"halted": True}), loop)
+
+    threading.Thread(target=watch_esc, args=(on_esc,), daemon=True).start()
     ocr = Ocr()
 
     # 첫 요청 때 띄우면 그 한 번이 1~2초 늦는다. 미리 띄워둔다.
@@ -596,10 +712,11 @@ async def main_async(args):
             await ws.close(code=4003, reason="origin not allowed")
             return
 
+        clients.add(ws)
         print(f"[연결] 브라우저 접속됨 (모드: {'실제 입력' if args.live else '안전모드'})")
         state["last_msg"] = time.time()
         # 페이지가 묻기 전에 알려준다: 입력 모드, 폰으로 보기가 켜졌는지
-        await ws.send(json.dumps({"live": args.live, "remote": remote is not None}))
+        await ws.send(json.dumps({"live": args.live, "remote": remote is not None, "halted": state["halted"]}))
         try:
             async for raw in ws:
                 state["last_msg"] = time.time()
@@ -659,6 +776,20 @@ async def main_async(args):
                         await ws.send(json.dumps({"id": rid, **remote.info(args.remote_port)}))
                     continue
 
+                if kind == "resume":
+                    if state["halted"]:
+                        print("[ESC] 정지를 풀었습니다")
+                    state["halted"] = False
+                    await ws.send(json.dumps({"id": msg.get("id"), "halted": False}))
+                    continue
+
+                # ESC 로 멈췄으면 아무것도 누르지 않는다
+                if kind in ("move", "tap", "click") and state["halted"]:
+                    if presser.held:
+                        presser.release_all()
+                    await ws.send(json.dumps({"id": msg.get("id"), "ok": True, "live": args.live, "halted": True}))
+                    continue
+
                 # 지정한 창이 아니면 키를 보내지 않는다. 잡고 있던 키부터 놓는다 —
                 # 안 놓으면 다른 창에 키가 눌린 채로 남는다.
                 if kind in ("move", "tap") and not window_ok():
@@ -668,11 +799,11 @@ async def main_async(args):
                     if now - state["last_block_log"] > 3:
                         state["last_block_log"] = now
                         print(f"[차단] 활성 창이 '{foreground_title()}' 이라 키를 보내지 않습니다")
-                    await ws.send(json.dumps({"ok": True, "live": args.live, "blocked": True}))
+                    await ws.send(json.dumps({"id": msg.get("id"), "ok": True, "live": args.live, "blocked": True}))
                     continue
 
                 # 폰에서 정지했으면 키를 보내지 않는다 (PC 탭이 아직 모르고 계속 보내도)
-                if kind in ("move", "tap") and remote is not None and remote.hold:
+                if kind in ("move", "tap", "click") and remote is not None and remote.hold:
                     if presser.held:
                         presser.release_all()
                     await ws.send(json.dumps({"ok": True, "live": args.live, "held": True}))
@@ -686,6 +817,21 @@ async def main_async(args):
                     key = msg.get("key", "")
                     if presser.tap(key) and not args.live:
                         print(f"[안전모드] 탭 {key}")
+                elif kind == "click":
+                    try:
+                        fx, fy = float(msg.get("x")), float(msg.get("y"))
+                    except (TypeError, ValueError):
+                        fx = fy = -1
+                    # 클릭은 대상 창을 직접 찾아서 누른다. 대상 창을 안 정했으면 어디를 누를지 모르니 막는다.
+                    hwnd = find_window(WINDOW)
+                    if not hwnd:
+                        await ws.send(json.dumps({"id": msg.get("id"), "ok": False, "live": args.live, "no_window": True}))
+                        continue
+                    at = clicker.click(hwnd, fx, fy, str(msg.get("button", "left")))
+                    if at and not args.live:
+                        print(f"[안전모드] 클릭 {msg.get('button', 'left')} @ {at[0]},{at[1]}")
+                    await ws.send(json.dumps({"id": msg.get("id"), "ok": bool(at), "live": args.live, "at": at}))
+                    continue
                 elif kind == "stop":
                     presser.release_all()
                     print("[정지] 모든 키 해제")
@@ -736,6 +882,7 @@ async def main_async(args):
                     continue
                 await ws.send(json.dumps({"ok": True, "live": args.live}))
         finally:
+            clients.discard(ws)
             presser.release_all()
             print("[연결 종료] 모든 키 해제")
 
@@ -767,7 +914,7 @@ async def main_async(args):
     if not args.live:
         print("\n지금은 안전모드입니다. 실제로 키를 누르게 하려면 --live 를 붙여 다시 실행하세요.")
     else:
-        print("\n실제 입력 모드입니다. 게임 창을 활성화해 두세요. 중단하려면 이 창에서 Ctrl+C.")
+        print("\n실제 입력 모드입니다. 게임 창을 활성화해 두세요. 급히 멈추려면 ESC, 끄려면 이 창에서 Ctrl+C.")
 
     # 글자 인식용 이미지는 작은 글씨를 살리려고 2배로 키워 보내서 1MB(기본 한도)를 넘는다
     async with websockets.serve(handler, "127.0.0.1", args.ws_port, max_size=16 * 2**20):

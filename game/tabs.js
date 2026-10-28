@@ -1,5 +1,5 @@
 // 페이지에 들어오면 게임부터 고른다. 고른 게임은 주소 #vamp / #farm 에 남겨서 새로고침해도 유지한다.
-const GAMES = { vamp: "🧛 뱀서", farm: "🌾 농부 게임" };
+const GAMES = { vamp: "🧛 뱀서", farm: "🌾 농부는 대체되었다" };
 
 function showGame(id) {
   const ok = id in GAMES;

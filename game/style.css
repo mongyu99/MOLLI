@@ -618,3 +618,4 @@ footer code {
   text-align: left;
 }
 .game-card b { font-size: 22px; color: var(--text); }
+canvas#fmView { width: 100%; height: auto; background: #000; cursor: crosshair; }

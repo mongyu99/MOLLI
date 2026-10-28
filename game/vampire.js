@@ -612,6 +612,11 @@
             pending.delete(m.id);
             return;
           }
+          // 게임 창에서 ESC 를 누르면 브릿지가 입력을 막고 알려준다
+          if (m.halted && running) {
+            stop();
+            setStatus("ESC 로 정지됨 — 다시 하려면 '조작 시작'", "bad");
+          }
           if (m.live !== undefined) el.vsLive.textContent = m.live ? "실제 입력" : "안전모드";
           if (m.remote !== undefined) {
             remoteOn = !!m.remote;
@@ -4459,8 +4464,9 @@ Answer with ONLY a JSON object, nothing else:
     }
     if (!gameRect) logger.push('<span class="dim">게임 영역이 지정되지 않아 화면 전체를 게임으로 봅니다</span>');
     if (remoteOn) await askBridge({ type: "remote_unhold" }, 3000); // 폰에서 걸어둔 정지를 푼다
+    await askBridge({ type: "resume" }, 3000); // ESC 로 걸린 정지를 푼다
     running = true;
-    setStatus("조작 중 — 게임 창을 클릭해서 활성화하세요", "ok");
+    setStatus("조작 중 — 게임 창을 클릭해서 활성화하세요 (ESC 로 정지)", "ok");
   }
 
   function stop() {

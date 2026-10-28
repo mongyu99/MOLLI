@@ -19,14 +19,44 @@
     <h2>어떤 게임을 할까요?</h2>
     <div class="game-pick-list">
       <button class="tab game-card" data-tab="vamp"><b>🧛 뱀서</b><span>Vampire Survivors 화면 조작</span></button>
-      <button class="tab game-card" data-tab="farm"><b>🌾 농부 게임</b><span>준비 중</span></button>
+      <button class="tab game-card" data-tab="farm"><b>🌾 농부는 대체되었다</b><span>마우스로 조작</span></button>
     </div>
   </section>
 
   <div class="layout" id="gameLayout" hidden>
     <div class="panels">
       <section class="tab-panel" id="panel-farm">
-        <p class="subtitle">농부 게임은 아직 준비 중입니다.</p>
+        <p class="subtitle">
+          <b>농부는 대체되었다</b> (The Farmer Was Replaced) — 화면을 공유받아 마우스로 조작합니다.
+          조작 중에 <b>ESC</b> 를 누르면 바로 멈춥니다.
+        </p>
+        <main>
+          <section class="vs-screen">
+            <div class="vs-view-col">
+              <canvas id="fmView" width="720" height="405"></canvas>
+            </div>
+            <div class="vs-side">
+              <div class="legend"><span id="fmStatus" class="vs-status">화면 공유를 먼저 시작하세요</span></div>
+              <div class="controls">
+                <button id="fmShare">화면 공유</button>
+                <button id="fmRun">▶ 조작 시작</button>
+                <button id="fmStop">■ 정지</button>
+              </div>
+              <div class="controls">
+                <label>대상 창 <input type="text" id="fmWindow" value="The Farmer Was Replaced" style="width:190px" /></label>
+              </div>
+              <div class="vs-help">
+                조작 중에 왼쪽 화면을 클릭하면 게임 창의 같은 자리를 클릭합니다 (오른쪽 클릭도 됨).
+                게임 창만 공유해야 위치가 맞습니다.
+              </div>
+              <div class="stats">
+                <div class="stat"><span>브릿지</span><b id="fmBridge">미연결</b></div>
+                <div class="stat"><span>입력 모드</span><b id="fmLive">-</b></div>
+                <div class="stat"><span>마지막 클릭</span><b id="fmLast">-</b></div>
+              </div>
+            </div>
+          </section>
+        </main>
       </section>
       <section class="tab-panel" id="panel-vamp">
         <p class="subtitle">
@@ -479,6 +509,7 @@
   <script src="log.js"></script>
   <script src="agent.js"></script>
   <script src="vampire.js"></script>
+  <script src="farm.js"></script>
   <script src="tabs.js"></script>
   <script src="molli.js"></script>
 </body>
