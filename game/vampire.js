@@ -131,22 +131,6 @@
 
   const logger = createLogger("vsLog", { max: 60 });
 
-  // 몰리는 세 탭이 같이 쓰는 요소가 하나뿐이라 복사할 수 없다.
-  // 뱀서 탭에서는 왼쪽 위로 옮기고, 나가면 원래 오른쪽 칼럼 자리로 돌려놓는다.
-  // 캔버스는 id 로 참조되므로 DOM 을 옮겨도 그리던 내용은 그대로 남는다.
-  function placeMolli() {
-    const molli = document.querySelector(".molli-column");
-    const slot = document.getElementById("vsMolliSlot");
-    const layout = document.querySelector(".layout");
-    if (!molli || !slot || !layout) return;
-    const onVamp = document.getElementById("panel-vamp")?.classList.contains("is-active");
-    const want = onVamp ? slot : layout;
-    if (molli.parentElement !== want) want.appendChild(molli);
-  }
-  // 게임 선택(tabs.js)이 화면을 바꿀 때마다 알려준다.
-  document.addEventListener("gamechange", placeMolli);
-  placeMolli();
-
   // 왼쪽 메뉴: 고른 것만 보여준다
   // "모니터링" 은 시야·로그·레벨업 읽은 것을 한 화면에 같이 보여준다.
   // 나머지 메뉴는 고른 것 하나만 보여준다.
@@ -4678,11 +4662,10 @@ Answer with ONLY a JSON object, nothing else:
     }
   });
 
-  document.querySelectorAll(".tab").forEach((tab) =>
-    tab.addEventListener("click", () => {
-      if (tab.dataset.tab !== "vamp" && running) stop();
-    })
-  );
+  // 다른 게임으로 넘어가면 뱀서 조작은 멈춘다
+  document.addEventListener("gamechange", () => {
+    if (running && !document.getElementById("panel-vamp").classList.contains("is-active")) stop();
+  });
   window.addEventListener("beforeunload", sendStop);
 
   el.vsAlpha.addEventListener("input", () => {

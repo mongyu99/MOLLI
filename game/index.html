@@ -7,29 +7,52 @@
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <header>
-    <h1>🪰 초파리 뇌 학습 실험실</h1>
-    <nav class="tabs" id="gameNav" hidden>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-name">MOLLI</span>
+      <span class="brand-sub">초파리 뇌 학습 실험실</span>
+    </div>
+    <nav class="game-nav" id="gameNav" hidden>
       <span class="game-name" id="gameName"></span>
-      <button class="tab" id="gameChange">게임 바꾸기</button>
+      <button class="btn-ghost" id="gameChange">게임 바꾸기</button>
     </nav>
   </header>
 
   <section class="game-pick" id="gamePick">
-    <h2>어떤 게임을 할까요?</h2>
+    <div class="pick-hero">
+      <p class="eyebrow">버섯체 학습 에이전트 · 실제 게임 조작</p>
+      <h1>오늘은 몰리에게<br />무슨 게임을 시킬까요?</h1>
+      <p class="pick-lead">게임을 고르면 화면 공유 → 브릿지 연결 → 조작 시작 순서로 진행합니다. 조작 중엔 언제든 <kbd>ESC</kbd> 로 멈춥니다.</p>
+    </div>
     <div class="game-pick-list">
-      <button class="tab game-card" data-tab="vamp"><b>🧛 뱀서</b><span>Vampire Survivors 화면 조작</span></button>
-      <button class="tab game-card" data-tab="farm"><b>🌾 농부는 대체되었다</b><span>마우스로 조작</span></button>
+      <button class="game-card" data-tab="vamp" style="--card: #c8463c">
+        <span class="card-key">1</span>
+        <span class="card-art" aria-hidden="true">VS</span>
+        <span class="card-body">
+          <b>뱀서</b>
+          <span class="card-en">Vampire Survivors</span>
+          <span class="card-desc">적과 젬을 화면에서 읽고, 몰리 뇌가 피할 방향을 정합니다.</span>
+          <span class="card-tags"><i>키보드</i><i>화면 인식</i><i>LLM</i></span>
+        </span>
+      </button>
+      <button class="game-card" data-tab="farm" style="--card: #7ba63a">
+        <span class="card-key">2</span>
+        <span class="card-art" aria-hidden="true">FR</span>
+        <span class="card-body">
+          <b>농부는 대체되었다</b>
+          <span class="card-en">The Farmer Was Replaced</span>
+          <span class="card-desc">공유 화면을 클릭하면 게임 창의 같은 자리를 누릅니다.</span>
+          <span class="card-tags"><i>마우스</i><i>원격 클릭</i></span>
+        </span>
+      </button>
     </div>
   </section>
 
   <div class="layout" id="gameLayout" hidden>
     <div class="panels">
       <section class="tab-panel" id="panel-farm">
-        <p class="subtitle">
-          <b>농부는 대체되었다</b> (The Farmer Was Replaced) — 화면을 공유받아 마우스로 조작합니다.
-          조작 중에 <b>ESC</b> 를 누르면 바로 멈춥니다.
-        </p>
+        <p class="subtitle">공유 화면을 클릭하면 게임 창의 같은 자리를 누릅니다. 오른쪽 클릭도 됩니다. 게임 창만 공유해야 위치가 맞습니다.</p>
         <main>
           <section class="vs-screen">
             <div class="vs-view-col">
@@ -39,20 +62,17 @@
               <div class="legend"><span id="fmStatus" class="vs-status">화면 공유를 먼저 시작하세요</span></div>
               <div class="controls">
                 <button id="fmShare">화면 공유</button>
-                <button id="fmRun">▶ 조작 시작</button>
+                <button id="fmRun" class="btn-primary">▶ 조작 시작</button>
                 <button id="fmStop">■ 정지</button>
               </div>
-              <div class="controls">
-                <label>대상 창 <input type="text" id="fmWindow" value="The Farmer Was Replaced" style="width:190px" /></label>
-              </div>
-              <div class="vs-help">
-                조작 중에 왼쪽 화면을 클릭하면 게임 창의 같은 자리를 클릭합니다 (오른쪽 클릭도 됨).
-                게임 창만 공유해야 위치가 맞습니다.
-              </div>
+              <label class="vs-block">대상 창
+                <input type="text" id="fmWindow" value="The Farmer Was Replaced" />
+              </label>
               <div class="stats">
                 <div class="stat"><span>브릿지</span><b id="fmBridge">미연결</b></div>
                 <div class="stat"><span>입력 모드</span><b id="fmLive">-</b></div>
                 <div class="stat"><span>마지막 클릭</span><b id="fmLast">-</b></div>
+                <div class="stat"><span>비상 정지</span><b><kbd>ESC</kbd></b></div>
               </div>
             </div>
           </section>
@@ -65,7 +85,6 @@
         </p>
         <main class="vs-outer">
           <div class="vs-top">
-            <div class="vs-molli-slot" id="vsMolliSlot"></div>
             <section class="vs-screen">
               <div class="vs-view-col">
                 <canvas id="vsView" width="720" height="405"></canvas>
@@ -79,7 +98,7 @@
               <div class="controls">
                 <button id="vsShare">화면 공유</button>
                 <button id="vsDemo">테스트 영상</button>
-                <button id="vsRun">▶ 조작 시작</button>
+                <button id="vsRun" class="btn-primary">▶ 조작 시작</button>
                 <button id="vsStop">■ 정지</button>
                 <label class="checkbox"><input type="checkbox" id="vsDebug" checked /> 인식 표시</label>
                 <label class="checkbox"><input type="checkbox" id="vsLogOn" checked /> 로그 기록</label>
@@ -495,11 +514,6 @@
       </section>
     </div>
 
-    <aside class="molli-column">
-      <div class="molli-bar"><span>몰리</span></div>
-      <canvas id="molliCanvas" width="120" height="140"></canvas>
-      <p class="molli-caption" id="molliCaption">땅굴 파는 중</p>
-    </aside>
   </div>
 
   <footer>
@@ -511,6 +525,5 @@
   <script src="vampire.js"></script>
   <script src="farm.js"></script>
   <script src="tabs.js"></script>
-  <script src="molli.js"></script>
 </body>
 </html>

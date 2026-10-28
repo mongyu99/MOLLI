@@ -141,5 +141,8 @@
   el.stop.addEventListener("click", stop);
   el.view.addEventListener("click", (e) => click(e, "left"));
   el.view.addEventListener("contextmenu", (e) => click(e, "right"));
+  document.addEventListener("gamechange", () => {
+    if (running && !document.getElementById("panel-farm").classList.contains("is-active")) stop();
+  });
   requestAnimationFrame(draw);
 })();

@@ -126,7 +126,6 @@ game/                브라우저에서 도는 전부 (뇌, 환경, 렌더링, 3
   tabs.js            시작할 때 게임 고르기
   farm.js            농부는 대체되었다 — 화면 공유 + 마우스 클릭
   vampire.js         화면 인식 · 판단 · 화면 판별 · LLM 연동
-  molli.js           저폴리 3D 마스코트 렌더러 (외부 라이브러리 없음)
 bot/bridge.py        브라우저의 판단을 실제 키 입력으로 옮기는 로컬 브릿지
 data/                초파리 뉴런 형태 데이터 (SWC)
 docs/TROUBLESHOOTING.md  지금까지 겪은 문제와 원인·해결 (날짜별)
