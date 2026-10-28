@@ -1,0 +1,239 @@
+{
+ "source": "나무위키 'Vampire Survivors/스테이지' 문서",
+ "url": "https://namu.wiki/w/Vampire%20Survivors/스테이지",
+ "license": "CC BY-NC-SA 2.0 KR (나무위키). 이름·시작 무기·수치 같은 사실만 옮겼고 설명 글은 넣지 않았다.",
+ "fetched": "2026-09-26",
+ "stages": [
+  {
+   "name": "광기의 숲",
+   "en": "Mad Forest",
+   "group": "일반 스테이지",
+   "time": "30분",
+   "unlock": "초기 개방"
+  },
+  {
+   "name": "화려한 도서관",
+   "en": "Inlaid Library",
+   "group": "일반 스테이지",
+   "time": "30분",
+   "unlock": ""
+  },
+  {
+   "name": "유제품 공장",
+   "en": "Dairy Plant",
+   "group": "일반 스테이지",
+   "time": "30분",
+   "unlock": ""
+  },
+  {
+   "name": "갈로의 탑",
+   "en": "Gallo Tower",
+   "group": "일반 스테이지",
+   "time": "30분",
+   "unlock": ""
+  },
+  {
+   "name": "마그나 예배당",
+   "en": "Cappella Magna",
+   "group": "일반 스테이지",
+   "time": "30분",
+   "unlock": ""
+  },
+  {
+   "name": "일 몰리제",
+   "en": "Il Molise",
+   "group": "보너스 스테이지",
+   "time": "15분",
+   "unlock": "다섯 메인 스테이지 중 1곳의 하이퍼 모드 해금, 하이퍼 모드는 스테이지와 함께 해금된다."
+  },
+  {
+   "name": "달빛",
+   "en": "Moongolow",
+   "group": "보너스 스테이지",
+   "time": "15분",
+   "unlock": "다섯 메인 스테이지 중 4개의 하이퍼 모드 해금, 하이퍼 모드는 스테이지와 함께 해금된다."
+  },
+  {
+   "name": "화이트아웃",
+   "en": "Whiteout",
+   "group": "보너스 스테이지",
+   "time": "20분",
+   "unlock": "회중시계 누적 20번 발견, 하이퍼 모드는 스테이지와 함께 해금된다."
+  },
+  {
+   "name": "라이케움",
+   "en": "The Lycaeum",
+   "group": "보너스 스테이지",
+   "time": "20분",
+   "unlock": "흡입기 누적 50개 발견, 하이퍼 모드는 스테이지와 함께 해금된다."
+  },
+  {
+   "name": "협동 농장",
+   "en": "The Coop",
+   "group": "보너스 스테이지",
+   "time": "20분",
+   "unlock": "치킨 500개를 습득해야 해금된다. 하이퍼 모드도 동시에 해금된다."
+  },
+  {
+   "name": "스페이스 54",
+   "en": "Space 54",
+   "group": "보너스 스테이지",
+   "time": "20분",
+   "unlock": "골드 핑거 누적 5번 발견, 하이퍼 모드는 스테이지와 함께 해금된다."
+  },
+  {
+   "name": "카를로 카트",
+   "en": "Carlo Cart",
+   "group": "보너스 스테이지",
+   "time": "15분",
+   "unlock": "실험실 스테이지에서 기차로 25,120의 누적 피해를 입혀야 한다. 하이퍼 모드는 스테이지와 함께 해금된다."
+  },
+  {
+   "name": "푸른 초원",
+   "en": "Green Acres",
+   "group": "챌린지 스테이지",
+   "time": "30분",
+   "unlock": "다섯 메인 스테이지 중 2개의 하이퍼 모드 해금, 하이퍼 모드는 스테이지와 함께 해금된다."
+  },
+  {
+   "name": "뼈의 대지",
+   "en": "The Bone Zone",
+   "group": "챌린지 스테이지",
+   "time": "30분",
+   "unlock": "5개의 메인 스테이지 중 3개의 하이퍼 모드 해금, 하이퍼 모드는 스테이지와 함께 해금된다."
+  },
+  {
+   "name": "보스 래쉬",
+   "en": "Boss Rash",
+   "group": "챌린지 스테이지",
+   "time": "15분",
+   "unlock": "5개의 메인 스테이지의 하이퍼 모드를 전부 해금, 하이퍼 모드는 스테이지와 함께 해금된다."
+  },
+  {
+   "name": "실험실",
+   "en": "Laborratory",
+   "group": "챌린지 스테이지",
+   "time": "20분",
+   "unlock": "묵주 누적 33개 발견, 하이퍼 모드는 스테이지와 함께 해금된다."
+  },
+  {
+   "name": "웨스트우드",
+   "en": "Westwoods",
+   "group": "챌린지 스테이지",
+   "time": "20분",
+   "unlock": "작은 클로버 누적 15개 발견. 하이퍼 모드는 스테이지와 함께 해금된다."
+  },
+  {
+   "name": "박쥐 나라",
+   "en": "Bat Country",
+   "group": "챌린지 스테이지",
+   "time": "20분",
+   "unlock": "아무 캐릭터로 반전 모드"
+  },
+  {
+   "name": "아스트랄 계단",
+   "en": "Astral Stair",
+   "group": "챌린지 스테이지",
+   "time": "20분",
+   "unlock": "아무 캐릭터로 반전 모드"
+  },
+  {
+   "name": "마제렐라",
+   "en": "Mazerella",
+   "group": "챌린지 스테이지",
+   "time": "20분",
+   "unlock": ""
+  },
+  {
+   "name": "작은 다리",
+   "en": "Tiny Bridge",
+   "group": "챌린지 스테이지",
+   "time": "20분",
+   "unlock": "아무 캐릭터로 반전 모드"
+  },
+  {
+   "name": "Hidden Ground - Holy Forbidden",
+   "en": "Holy Forbidden",
+   "group": "???",
+   "time": "5분",
+   "unlock": ""
+  },
+  {
+   "name": "에우다이모니아 M.",
+   "en": "Eudaimonia M.",
+   "group": "???",
+   "time": "99분",
+   "unlock": ""
+  },
+  {
+   "name": "1665호실",
+   "en": "Room 1665",
+   "group": "???",
+   "time": "30분",
+   "unlock": ""
+  },
+  {
+   "name": "문스펠 산",
+   "en": "Mt.Moonspell",
+   "group": "DLC 스테이지",
+   "time": "30분",
+   "unlock": "Legacy of the Moonspell DLC 구매"
+  },
+  {
+   "name": "Foscari 호수",
+   "en": "Lake Foscari",
+   "group": "DLC 스테이지",
+   "time": "30분",
+   "unlock": "Tides of the Foscari DLC 구매"
+  },
+  {
+   "name": "Foscari 심연",
+   "en": "Abyss Foscari",
+   "group": "DLC 스테이지",
+   "time": "30분",
+   "unlock": ""
+  },
+  {
+   "name": "Polus 레플리카",
+   "en": "Polus Replica",
+   "group": "DLC 스테이지",
+   "time": "30분",
+   "unlock": "Emergency Meeting DLC 구매"
+  },
+  {
+   "name": "네오 갈루가",
+   "en": "Neo Galuga",
+   "group": "DLC 스테이지",
+   "time": "30분",
+   "unlock": "Operation Guns DLC 구매"
+  },
+  {
+   "name": "빡빡한 하이웨이",
+   "en": "Hectic Highway",
+   "group": "DLC 스테이지",
+   "time": "20분",
+   "unlock": ""
+  },
+  {
+   "name": "Ode to Castlevania",
+   "en": "Ode to Castlevania",
+   "group": "DLC 스테이지",
+   "time": "30분",
+   "unlock": "Ode to Castlevania DLC 구매"
+  },
+  {
+   "name": "에메랄드 디오라마",
+   "en": "Emerald Diorama",
+   "group": "DLC 스테이지",
+   "time": "30분",
+   "unlock": "DLC 활성화 이후 달빛 스테이지에서 새로 등장하는 전용 상인에게 에메랄드 디스크 구매. 하이퍼 모드는 25분대 보스인 저주의 왕"
+  },
+  {
+   "name": "안테 챔버",
+   "en": "Ante Chamber",
+   "group": "DLC 스테이지",
+   "time": "30분",
+   "unlock": "DLC 활성화 이후 달빛 스테이지에서 새로 등장하는 전용 상인에게 조커 디스크 구매. 하이퍼 모드는 25분대 보스인 크림슨 하트를 처치하면 해금"
+  }
+ ]
+}

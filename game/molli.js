@@ -279,8 +279,7 @@
   }
 
   function currentMode() {
-    const active = document.querySelector(".tab.is-active");
-    return active && active.dataset.tab === "mines" ? "carry" : "dig";
+    return "dig";
   }
 
   let x = 0;

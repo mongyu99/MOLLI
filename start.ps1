@@ -2,6 +2,8 @@
 #
 #   .\start.ps1          안전모드 - 실제 키는 누르지 않고 무엇을 누르려 했는지만 찍는다
 #   .\start.ps1 -Live    실제로 키를 누른다
+#   .\start.ps1 -Remote  폰으로 보기 창구도 연다 (보기 + 정지·시작·말 지시, 연결 코드로 등록한 기기만)
+#                        -Live 와 같이 쓸 수 있다: .\start.ps1 -Live -Remote
 #
 # 도커(게임 페이지 + 선택적으로 Ollama)를 먼저 올리고, 도커에 담을 수 없는 브릿지만
 # 이 창에서 띄운다. 브릿지는 호스트 윈도우 데스크톱에 키를 보내야 해서 컨테이너에
@@ -10,7 +12,7 @@
 # 이 파일은 반드시 UTF-8 BOM 으로 저장해야 한다. Windows PowerShell 5.1 은 BOM 이 없으면
 # .ps1 을 ANSI(CP949)로 읽어서 한글이 깨지고 파싱까지 실패한다.
 
-param([switch]$Live)
+param([switch]$Live, [switch]$Remote)
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Definition
 Set-Location $root
@@ -41,14 +43,23 @@ if ((Invoke-Docker @("compose", "up", "-d")) -ne 0) {
 }
 
 # 컨테이너가 떴다고 해서 nginx가 바로 응답하는 건 아니다. 실제로 받아질 때까지 기다린다.
+# 주소는 127.0.0.1 로 묻는다. 페이지는 127.0.0.1 에만 묶여 있어서, localhost 로 물으면 IPv6(::1)
+# 쪽으로 먼저 가서 매번 2초씩 기다리다 끝난다 — 20번이면 50초 가까이 멈춘 것처럼 보였다 (실제로 겪었다).
+# 브라우저는 알아서 IPv4 로 넘어가므로 사용자에게는 그대로 localhost 주소를 알려준다
+# (주소를 바꾸면 브라우저에 저장된 설정이 다른 사이트 것으로 취급돼 안 보인다).
 $ok = $false
+Write-Host "  페이지 응답 기다리는 중" -NoNewline -ForegroundColor DarkGray
 foreach ($i in 1..20) {
     try {
-        if ((Invoke-WebRequest "http://localhost:8743/" -UseBasicParsing -TimeoutSec 2).StatusCode -eq 200) {
+        if ((Invoke-WebRequest "http://127.0.0.1:8743/" -UseBasicParsing -TimeoutSec 2).StatusCode -eq 200) {
             $ok = $true; break
         }
-    } catch { Start-Sleep -Milliseconds 400 }
+    } catch {
+        Write-Host "." -NoNewline -ForegroundColor DarkGray
+        Start-Sleep -Milliseconds 400
+    }
 }
+Write-Host ""
 if ($ok) {
     Write-Host "  게임 페이지  http://localhost:8743  (브릿지 없이도 향기추적/지뢰찾기는 됩니다)" -ForegroundColor Green
 } else {
@@ -59,14 +70,14 @@ if ($ok) {
 # 네이티브든 도커든 상관없다. 브릿지는 주소만 보고 부른다.
 Step 2 "Ollama 확인"
 try {
-    $tags = Invoke-RestMethod "http://localhost:11434/api/tags" -TimeoutSec 3
+    $tags = Invoke-RestMethod "http://127.0.0.1:11434/api/tags" -TimeoutSec 3
     $where = if (docker ps --format "{{.Names}}" | Select-String -Quiet "molli-ollama") { "도커" } else { "네이티브" }
     $names = ($tags.models | ForEach-Object { $_.name }) -join ", "
     if (-not $names) { $names = "없음" }
     Write-Host "  $where · 모델: $names" -ForegroundColor Green
 
     # 모델이 VRAM에 없으면 첫 판별이 수십 초 걸린다. 올라가 있는지 알려만 준다.
-    $ps = (Invoke-RestMethod "http://localhost:11434/api/ps" -TimeoutSec 3).models
+    $ps = (Invoke-RestMethod "http://127.0.0.1:11434/api/ps" -TimeoutSec 3).models
     if ($ps) {
         foreach ($m in $ps) {
             $gpu = if ($m.size -gt 0) { [math]::Round(100 * $m.size_vram / $m.size) } else { 0 }
@@ -84,10 +95,19 @@ try {
 Step 3 "브릿지 (호스트에서 실행 - 도커 불가)"
 $py = Join-Path $root "bot\.venv\Scripts\python.exe"
 if (-not (Test-Path $py)) {
-    Write-Host "  bot\.venv 가 없습니다. 먼저 만들어주세요:" -ForegroundColor Red
-    Write-Host "    python -m venv bot\.venv" -ForegroundColor DarkGray
-    Write-Host "    bot\.venv\Scripts\pip install websockets pydirectinput" -ForegroundColor DarkGray
-    exit 1
+    # 새 PC 에서 처음 띄울 때. 가상환경은 깃에 올리지 않으므로 여기서 만든다.
+    $sysPy = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $sysPy) {
+        Write-Host "  파이썬이 없습니다. python.org 에서 3.10 이상을 설치하고 다시 실행하세요." -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "  bot\.venv 가 없어서 만듭니다 (처음 한 번만)" -ForegroundColor Yellow
+    & $sysPy.Source -m venv (Join-Path $root "bot\.venv")
+    & $py -m pip install --disable-pip-version-check -q -r (Join-Path $root "bot\requirements.txt")
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  패키지를 설치하지 못했습니다. 인터넷 연결을 확인하세요." -ForegroundColor Red
+        exit 1
+    }
 }
 
 # --no-web: 페이지는 nginx 컨테이너가 서빙하므로 브릿지는 HTTP를 열지 않는다
@@ -97,6 +117,11 @@ if ($Live) {
     $bridgeArgs += "--live"
 } else {
     Write-Host "  안전모드입니다. 실제로 키를 누르게 하려면 .\start.ps1 -Live" -ForegroundColor DarkGray
+}
+if ($Remote) {
+    # 폰은 PC 와 같은 와이파이에서, 페이지의 '폰으로 보기' 에서 만든 코드로 등록한다.
+    $bridgeArgs += "--remote"
+    Write-Host "  폰으로 보기를 켭니다. 처음 켤 때 윈도우 방화벽이 물어보면 허용해야 폰이 닿습니다." -ForegroundColor Yellow
 }
 Write-Host "  멈추려면 이 창에서 Ctrl+C (도커는 계속 떠 있습니다 - 내리려면 .\stop.ps1)`n" -ForegroundColor DarkGray
 
