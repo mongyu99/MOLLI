@@ -160,7 +160,9 @@ const DIRECTIONS = ["North", "East", "South", "West"];
     if (agentOn && stream && video.videoWidth) showLayout = analyzeLayout();
   }, 1000);
   function mark(fx, fy, ok, label) {
-    marks.push({ fx, fy, ok, label, until: performance.now() + 2500 });
+    // 같은 자리에 이름표가 겹치지 않게, 같은 자리 표시는 새 것으로 바꾼다
+    for (let i = marks.length - 1; i >= 0; i--) if (Math.abs(marks[i].fx - fx) < 0.005 && Math.abs(marks[i].fy - fy) < 0.005) marks.splice(i, 1);
+    marks.push({ fx, fy, ok, label, until: performance.now() + 4000 });
     if (marks.length > 12) marks.shift();
   }
   // 자율 플레이 상태
@@ -251,7 +253,40 @@ const DIRECTIONS = ["North", "East", "South", "West"];
   const connected = () => ws && ws.readyState === WebSocket.OPEN;
   const ensureBridge = async () => connected() || (await connectBridge());
 
+  // 실제 입력(클릭·끌기·스크롤·키·글자)이 나갈 때마다 '무엇을 왜' 와 그 자리 사진을 로그에 남긴다.
+  // 10-28: "지금 대체 뭘 클릭하는 건지 모르겠다". 호출하는 쪽이 payload.why 에 이름표를 단다 (브릿지는 무시한다).
+  const INPUT_KINDS = { click: "🖱", drag: "✋", scroll: "🖱", key: "⌨", type: "⌨", paste: "📋" };
+  function snapshot(fx, fy) {
+    const W = video.videoWidth, H = video.videoHeight;
+    if (!W) return "";
+    const cw = Math.round(W * 0.14), ch = Math.round(H * 0.1);
+    const c = document.createElement("canvas");
+    c.width = 224;
+    c.height = Math.round((224 * ch) / cw);
+    const g = c.getContext("2d");
+    g.drawImage(video, fx * W - cw / 2, fy * H - ch / 2, cw, ch, 0, 0, c.width, c.height);
+    g.strokeStyle = "#ff3b30";
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(c.width / 2 - 14, c.height / 2); g.lineTo(c.width / 2 + 14, c.height / 2);
+    g.moveTo(c.width / 2, c.height / 2 - 14); g.lineTo(c.width / 2, c.height / 2 + 14);
+    g.stroke();
+    return c.toDataURL("image/jpeg", 0.7);
+  }
+  function logInput(payload) {
+    const icon = INPUT_KINDS[payload.type];
+    if (!icon) return;
+    const label = payload.why || payload.type;
+    const fx = payload.x ?? payload.x1, fy = payload.y ?? payload.y1;
+    const where = fx != null ? ` <span class="dim">(${Math.round(fx * 100)}%, ${Math.round(fy * 100)}%)</span>` : "";
+    const extra = payload.type === "paste" || payload.type === "type" ? ` <span class="dim">${esc(String(payload.text).slice(0, 80).replace(/\n/g, " ⏎ "))}</span>` : "";
+    const shot = fx != null && stream ? `<br /><img class="click-shot" src="${snapshot(fx, fy)}" alt="" />` : "";
+    logger.push(`<span class="tag">${icon} ${stamp()}</span> <b>${esc(label)}</b>${where}${extra}${shot}`);
+    if (fx != null) mark(fx, fy, null, label);
+  }
+
   function ask(payload, timeoutMs = 3000) {
+    logInput(payload);
     return new Promise((resolve) => {
       if (!connected()) return resolve({ error: "브릿지 미연결" });
       const id = `f${++reqId}`;
@@ -348,9 +383,15 @@ const DIRECTIONS = ["North", "East", "South", "West"];
       ctx.stroke();
       ctx.strokeRect(x - r / 2, y - r / 2, r, r);
       if (m.label) {
-        ctx.font = `${Math.max(14, r)}px NeoDunggeunmo, monospace`;
+        // 이름표는 검은 바탕 위에 크게 — 무엇을 누르는지 멀리서도 읽히게
+        const fs = Math.max(18, el.view.width / 70);
+        ctx.font = `${fs}px NeoDunggeunmo, monospace`;
+        const tw = ctx.measureText(m.label).width;
+        const lx = Math.min(x + r + 6, el.view.width - tw - 10), ly = Math.max(fs + 6, y - 6);
+        ctx.fillStyle = "rgba(0,0,0,0.8)";
+        ctx.fillRect(lx - 4, ly - fs, tw + 8, fs * 1.3);
         ctx.fillStyle = ctx.strokeStyle;
-        ctx.fillText(m.label, x + r + 4, y - 4);
+        ctx.fillText(m.label, lx, ly);
       }
     }
     requestAnimationFrame(draw);
@@ -935,8 +976,8 @@ Answer JSON only, describing only what this page says:
   }
 
   // 브릿지에 클릭 하나. 공유 화면 크기를 같이 보내서 브릿지가 기준 영역(창 전체/내용 영역)을 고르게 한다.
-  const sendClick = (fx, fy, button) =>
-    ask({ type: "click", x: fx, y: fy, button, cw: video.videoWidth, ch: video.videoHeight });
+  const sendClick = (fx, fy, button, why) =>
+    ask({ type: "click", x: fx, y: fy, button, why, cw: video.videoWidth, ch: video.videoHeight });
 
   // 글자 상자 안에서 눌러볼 자리들. 가운데부터, 안 되면 조금씩 옮긴다.
   function nudges(box, W, H) {
@@ -1197,7 +1238,7 @@ Answer JSON only, describing only what this page says:
       }
       const [hx, hy] = win.handle;
       const x2 = hx + (to.x - win.x), y2 = hy + (to.y - win.y);
-      const r = await ask({ type: "drag", x1: hx, y1: hy, x2, y2, cw: video.videoWidth, ch: video.videoHeight });
+      const r = await ask({ type: "drag", x1: hx, y1: hy, x2, y2, why: `창 '${win.name || "?"}' 옮기기 — 밭을 가림`, cw: video.videoWidth, ch: video.videoHeight });
       mark(hx, hy, r.from ? null : false, "✋");
       mark(x2, y2, r.from ? true : false, "↘");
       if (r.halted) return notes;
@@ -1409,7 +1450,7 @@ Dragging a window ONTO another window docks it to that window.`;
       await sleep(150);
       const base = tinyFrame();
       const noise = frameDiff(a, base);
-      const r = await sendClick(fx, fy, button);
+      const r = await sendClick(fx, fy, button, `${label}${points.length > 1 ? ` (${i + 1}번째 자리)` : ""}`);
       if (r.halted) return { text: "ESC 로 막힘", stop: true, tries };
       if (r.no_window) return { text: `'${el.window.value}' 창을 못 찾음`, stop: true, tries };
       if (r.error) {
@@ -1504,7 +1545,7 @@ Dragging a window ONTO another window docks it to that window.`;
     const btn = barButtons(win)[0];
     if (!btn || btn[0] > win.x + win.w * 0.2) return { text: "▶ 버튼을 못 찾음" };
     const before = tinyFrame();
-    const r = await sendClick(btn[0], btn[1], "left");
+    const r = await sendClick(btn[0], btn[1], "left", `▶ '${win.name}' 실행`);
     mark(btn[0], btn[1], r.at ? true : false, "▶");
     if (r.halted) return { text: "ESC 로 막힘", stop: true };
     if (r.error) return { text: `▶ 누르기 실패: ${r.error}` };
@@ -1525,15 +1566,15 @@ Dragging a window ONTO another window docks it to that window.`;
     const steps = [];
     let editor = { text: "" };
     for (let attempt = 1; attempt <= 2; attempt++) {
-      const rc = await sendClick(ex, ey, "left");
+      const rc = await sendClick(ex, ey, "left", `✎ '${win.name}' 편집 칸 누르기 (${attempt}번째)`);
       if (rc.halted) return { text: "ESC 로 막힘", stop: true };
       if (rc.error) return { text: `편집 칸 클릭 실패: ${rc.error}` };
       mark(ex, ey, true, "✎");
       await sleep(200);
       // 있던 코드를 통째로 바꾼다
-      const ra = await ask({ type: "key", key: "ctrl+a" });
+      const ra = await ask({ type: "key", key: "ctrl+a", why: `Ctrl+A — '${win.name}' 코드 전체 선택` });
       if (ra.halted) return { text: "ESC 로 막힘", stop: true };
-      const rp = await ask({ type: "paste", text: code }, 20000);
+      const rp = await ask({ type: "paste", text: code, why: `붙여넣기 → '${win.name}'` }, 20000);
       if (rp.halted) return { text: "ESC 로 막힘", stop: true };
       if (rp.error) return { text: `붙여넣기 실패: ${rp.error}` };
       if (!rp.live) return { text: `'${win.name}' 에 ${rp.typed}글자 붙여넣기 (안전모드라 실제로 넣진 않음)` };
@@ -1573,7 +1614,7 @@ Dragging a window ONTO another window docks it to that window.`;
         if (l.inPicture) return { text: `"${l.text}" 는 설명서 속 그림 안의 글자라 누르지 않음` };
         if (l.windowName) return { text: `"${l.text}" 는 창 이름이라 누르지 않음 (누르면 이름 바꾸기) — 코드는 "code" 행동으로` };
         if (plainInWindow(l)) return { text: `"${l.text}" 는 창 안의 일반 글자(링크 아님)라 누르지 않음 — 초록 링크를 고르세요` };
-        return clickUntilChange(nudges(l, view.w, view.h), a.button === "right" ? "right" : "left", `[${a.target}]`);
+        return clickUntilChange(nudges(l, view.w, view.h), a.button === "right" ? "right" : "left", `${l.link ? "링크" : "글자"} [${a.target}] "${l.text}"`);
       }
       case "button": {
         // 10-28: '+' 를 계속 눌러 코드 창(f0, f1, f3 …)을 무한히 만들었다. 코드 창이 하나라도 있으면 더 만들지 않는다.
@@ -1585,7 +1626,7 @@ Dragging a window ONTO another window docks it to that window.`;
         const at = found[a.name];
         if (!at) return { text: `'${a.name}' 버튼을 화면에서 못 찾음 (찾은 것: ${Object.keys(found).join(", ") || "없음"})` };
         const hint = FARM_UI_HINTS.find((h) => h.button === a.name);
-        return clickUntilChange([at], "left", hint ? hint.name : a.name);
+        return clickUntilChange([at], "left", `오른쪽 위 ${hint ? hint.name : a.name}`);
       }
       case "back": {
         const win = docsWindow(analyzeLayout());
@@ -1597,7 +1638,7 @@ Dragging a window ONTO another window docks it to that window.`;
         if (!win) return { text: `'${a.window}' 창이 없음` };
         const btn = barButtons(win).pop();
         if (!btn || btn[0] < win.x + win.w * 0.7) return { text: `'${a.window}' 의 ✕ 를 못 찾음` };
-        const r3 = await sendClick(btn[0], btn[1], "left");
+        const r3 = await sendClick(btn[0], btn[1], "left", `✕ '${a.window}' 닫기`);
         mark(btn[0], btn[1], r3.at ? true : false, "✕");
         if (r3.halted) return { text: "ESC 로 막힘", stop: true };
         if (r3.error) return { text: `✕ 누르기 실패: ${r3.error}` };
@@ -1624,7 +1665,7 @@ Dragging a window ONTO another window docks it to that window.`;
         const to = placeAway(win, lay.field, lay.windows.filter((o) => o !== win));
         if (!to) return { text: `'${a.window}' 를 다른 창과 안 겹치게 놓을 빈자리가 없음` };
         const [hx, hy] = win.handle;
-        const r2 = await ask({ type: "drag", x1: hx, y1: hy, x2: hx + (to.x - win.x), y2: hy + (to.y - win.y), cw: video.videoWidth, ch: video.videoHeight });
+        const r2 = await ask({ type: "drag", x1: hx, y1: hy, x2: hx + (to.x - win.x), y2: hy + (to.y - win.y), why: `창 '${a.window}' 옮기기`, cw: video.videoWidth, ch: video.videoHeight });
         if (r2.halted) return { text: "ESC 로 막힘", stop: true };
         if (r2.error) return { text: `실패: ${r2.error}` };
         mark(hx + (to.x - win.x), hy + (to.y - win.y), true, "↘");
@@ -1638,7 +1679,7 @@ Dragging a window ONTO another window docks it to that window.`;
         // 아이콘은 위치가 대충이라 둘레를 조금씩 돌며 눌러본다 (화면 폭의 1.5% 간격)
         const x = Number(a.x), y = Number(a.y), s = 0.015;
         const pts = [[x, y], [x, y - s], [x, y + s], [x - s, y], [x + s, y]];
-        return clickUntilChange(pts.map(([px, py]) => [Math.min(1, Math.max(0, px)), Math.min(1, Math.max(0, py))]), a.button === "right" ? "right" : "left", "◎");
+        return clickUntilChange(pts.map(([px, py]) => [Math.min(1, Math.max(0, px)), Math.min(1, Math.max(0, py))]), a.button === "right" ? "right" : "left", `좌표 클릭 (${Math.round(x * 100)}%, ${Math.round(y * 100)}%)`);
       }
       case "scroll": {
         // 휠은 커서 밑에서만 먹는다. 줄 번호가 있으면 그 줄 위, 좌표가 있으면 거기, 둘 다 없으면 화면 가운데.
@@ -1647,7 +1688,7 @@ Dragging a window ONTO another window docks it to that window.`;
         const fy = l ? (l.y + l.h / 2) / view.h : a.y != null ? Number(a.y) : 0.5;
         const n = Math.min(10, Math.max(1, Number(a.amount) || 3)) * (a.direction === "up" ? -1 : 1);
         const before = tinyFrame();
-        r = await ask({ type: "scroll", x: fx, y: fy, clicks: n, cw: video.videoWidth, ch: video.videoHeight });
+        r = await ask({ type: "scroll", x: fx, y: fy, clicks: n, why: `스크롤 ${n > 0 ? "아래" : "위"} ${Math.abs(n)}칸${l ? ` — "${l.text}" 위에서` : ""}`, cw: video.videoWidth, ch: video.videoHeight });
         if (r.halted) return { text: "ESC 로 막힘", stop: true };
         if (r.no_window) return { text: `'${el.window.value}' 창을 못 찾음`, stop: true };
         if (r.error) return { text: `실패: ${r.error}` };
@@ -1659,10 +1700,10 @@ Dragging a window ONTO another window docks it to that window.`;
         return { text: diff > 1.5 ? `스크롤됨 (변화 ${diff.toFixed(1)})` : `화면 변화 없음 — 이미 끝이거나 스크롤되는 곳이 아님 (변화 ${diff.toFixed(1)})` };
       }
       case "type":
-        r = await ask({ type: "type", text: String(a.text ?? "") }, 60000);
+        r = await ask({ type: "type", text: String(a.text ?? ""), why: "글자 입력" }, 60000);
         break;
       case "key":
-        r = await ask({ type: "key", key: String(a.key ?? "") });
+        r = await ask({ type: "key", key: String(a.key ?? ""), why: `키 ${a.key}` });
         break;
       case "wait":
         await sleep(Math.min(10, Math.max(1, Number(a.seconds) || 2)) * 1000);
@@ -1722,7 +1763,7 @@ Dragging a window ONTO another window docks it to that window.`;
   async function goBack(win) {
     const btn = barButtons(win)[0];
     if (!btn || btn[0] > win.x + win.w * 0.2) return "왼쪽 위 ↩ 버튼을 못 찾음";
-    const r = await sendClick(btn[0], btn[1], "left");
+    const r = await sendClick(btn[0], btn[1], "left", "↩ 정보 창 목차로 돌아가기");
     mark(btn[0], btn[1], r.at ? true : false, "↩");
     if (r.error) return `↩ 누르기 실패: ${r.error}`;
     return `↩ 눌러 목차로${r.live ? "" : " (안전모드라 실제로 누르진 않음)"}`;
@@ -1752,7 +1793,7 @@ Dragging a window ONTO another window docks it to that window.`;
       setPhase(`📜 '${title}' 스크롤`);
       const before = tinyFrame();
       const cx = win.x + win.w / 2, cy = win.y + win.barH + (win.h - win.barH) / 2;
-      const r = await ask({ type: "scroll", x: cx, y: cy, clicks: 5, cw: video.videoWidth, ch: video.videoHeight });
+      const r = await ask({ type: "scroll", x: cx, y: cy, clicks: 5, why: `📜 설명서 '${title}' 아래로 스크롤 (${i + 1}번째)`, cw: video.videoWidth, ch: video.videoHeight });
       if (r.halted || !agentOn) return { text: "ESC 로 막힘", stop: true };
       if (r.error) { rows.push(`스크롤 실패: ${r.error}`); break; }
       mark(cx, cy, null, "▼");
@@ -1888,7 +1929,7 @@ Dragging a window ONTO another window docks it to that window.`;
     const r = el.view.getBoundingClientRect();
     const x = (ev.clientX - r.left) / r.width;
     const y = (ev.clientY - r.top) / r.height;
-    const res = await sendClick(x, y, button);
+    const res = await sendClick(x, y, button, "손으로 누른 자리");
     if (res.halted) return;
     if (res.no_window) return setStatus(`'${el.window.value}' 창을 찾지 못했습니다 — 대상 창 이름을 확인하세요`, "bad");
     if (res.error) setStatus(res.error, "bad");
@@ -2009,7 +2050,7 @@ Dragging a window ONTO another window docks it to that window.`;
       e.preventDefault();
       const r = el.view.getBoundingClientRect();
       const fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
-      const res = await ask({ type: "scroll", x: fx, y: fy, clicks: e.deltaY > 0 ? 1 : -1, cw: video.videoWidth, ch: video.videoHeight });
+      const res = await ask({ type: "scroll", x: fx, y: fy, clicks: e.deltaY > 0 ? 1 : -1, why: "손으로 굴린 휠", cw: video.videoWidth, ch: video.videoHeight });
       if (res.error) setStatus(res.error, "bad");
       mark(fx, fy, null, e.deltaY > 0 ? "▼" : "▲");
     },

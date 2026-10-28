@@ -702,3 +702,5 @@ canvas#fmView { width: 100%; height: auto; display: block; background: var(--slo
 .agent-bar button:hover { background: #2a2720; }
 .agent-bar kbd { font-size: 12px; }
 @media (prefers-reduced-motion: reduce) { .agent-dot { animation: none; } }
+/* 판단 로그: 누르기 직전 그 자리 사진 */
+.click-shot { display: block; width: 224px; margin: 4px 0 2px 16px; border: 2px solid #000; image-rendering: auto; }
