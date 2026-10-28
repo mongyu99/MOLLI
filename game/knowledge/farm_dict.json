@@ -1,0 +1,530 @@
+{
+ "game": "The Farmer Was Replaced",
+ "updated": "2026-10-28T12:49:31.261Z",
+ "entries": {
+  "+ 버튼": {
+   "seen": 3,
+   "first": "2026-10-28T11:22:50.349Z",
+   "changes": [
+    {
+     "at": "2026-10-28T11:23:15.815Z",
+     "check": 1,
+     "field": "meaning",
+     "old": "화면 오른쪽 위에 있음 — 누르면 새 코드 창이 추가된다",
+     "now": "새 코드 창을 추가한다"
+    }
+   ],
+   "name": "+ 버튼",
+   "kind": "ui",
+   "kindGuess": false,
+   "signature": "",
+   "meaning": "화면 오른쪽 위에 있음 — 누르면 새 코드 창이 추가된다",
+   "example": "",
+   "last": "2026-10-28T11:27:27.042Z",
+   "sources": [
+    {
+     "at": "2026-10-28T11:27:27.042Z",
+     "check": 0,
+     "screen": "play",
+     "how": "사용자가 알려줌",
+     "from": "화면 오른쪽 위의 + 버튼"
+    }
+   ]
+  },
+  "i 버튼": {
+   "seen": 3,
+   "first": "2026-10-28T11:22:50.349Z",
+   "changes": [
+    {
+     "at": "2026-10-28T11:23:15.815Z",
+     "check": 1,
+     "field": "meaning",
+     "old": "화면 오른쪽 위에 있음 — 누르면 정보 창(게임 설명서)이 뜬다. 함수·문법을 배우기 좋다",
+     "now": "정보 창(게임 설명서)을 뜬다"
+    }
+   ],
+   "name": "i 버튼",
+   "kind": "ui",
+   "kindGuess": false,
+   "signature": "",
+   "meaning": "화면 오른쪽 위에 있음 — 누르면 정보 창(게임 설명서)이 뜬다. 함수·문법을 배우기 좋다",
+   "example": "",
+   "last": "2026-10-28T11:27:27.042Z",
+   "sources": [
+    {
+     "at": "2026-10-28T11:27:27.042Z",
+     "check": 0,
+     "screen": "play",
+     "how": "사용자가 알려줌",
+     "from": "화면 오른쪽 위의 i 버튼"
+    }
+   ]
+  },
+  "tab 키": {
+   "name": "Tab 키",
+   "kind": "other",
+   "kindGuess": false,
+   "signature": "Tab",
+   "meaning": "자동 완성을 삽입한다",
+   "example": "",
+   "seen": 1,
+   "first": "2026-10-28T11:23:15.815Z",
+   "last": "2026-10-28T11:23:15.815Z",
+   "sources": [
+    {
+     "at": "2026-10-28T11:23:15.815Z",
+     "check": 1,
+     "screen": "docs",
+     "how": "LLM",
+     "from": "[11]"
+    }
+   ],
+   "changes": []
+  },
+  "comments": {
+   "name": "Comments",
+   "kind": "topic",
+   "kindGuess": false,
+   "signature": "",
+   "meaning": "",
+   "example": "",
+   "seen": 10,
+   "first": "2026-10-28T11:36:23.776Z",
+   "last": "2026-10-28T12:47:41.985Z",
+   "sources": [
+    {
+     "at": "2026-10-28T11:36:23.776Z",
+     "check": 1,
+     "screen": "docs",
+     "how": "LLM",
+     "from": "설명서 목차의 'Programming'"
+    }
+   ],
+   "changes": []
+  },
+  "grass": {
+   "name": "Grass",
+   "kind": "unlock",
+   "kindGuess": false,
+   "signature": "",
+   "meaning": "",
+   "example": "",
+   "seen": 10,
+   "first": "2026-10-28T11:36:23.776Z",
+   "last": "2026-10-28T12:47:41.985Z",
+   "sources": [
+    {
+     "at": "2026-10-28T11:36:23.776Z",
+     "check": 1,
+     "screen": "docs",
+     "how": "LLM",
+     "from": "설명서 목차의 'Unlocks'"
+    }
+   ],
+   "changes": []
+  },
+  "do_a_flip": {
+   "name": "do_a_flip",
+   "kind": "function",
+   "kindGuess": false,
+   "signature": "",
+   "meaning": "",
+   "example": "",
+   "seen": 10,
+   "first": "2026-10-28T11:36:23.776Z",
+   "last": "2026-10-28T12:47:41.985Z",
+   "sources": [
+    {
+     "at": "2026-10-28T11:36:23.776Z",
+     "check": 1,
+     "screen": "docs",
+     "how": "LLM",
+     "from": "설명서 목차의 'Built-in Functions'"
+    }
+   ],
+   "changes": []
+  },
+  "harvest": {
+   "name": "harvest",
+   "kind": "function",
+   "kindGuess": false,
+   "signature": "harvest()",
+   "meaning": "함수는 실행 가능한 명령으로 생각할 수 있습니다. 함수는 괄호()를 사용하여 실행합니다.",
+   "example": "harvest()\nharvest()\ndo_a_flip()\nharvest()",
+   "seen": 40,
+   "first": "2026-10-28T11:36:23.776Z",
+   "last": "2026-10-28T12:49:31.261Z",
+   "sources": [
+    {
+     "at": "2026-10-28T12:40:24.205Z",
+     "check": 1,
+     "screen": "docs",
+     "how": "OCR 규칙",
+     "from": "harvest( )"
+    },
+    {
+     "at": "2026-10-28T12:24:16.164Z",
+     "check": 3,
+     "screen": "docs",
+     "how": "OCR 규칙",
+     "from": "harvest()"
+    },
+    {
+     "at": "2026-10-28T12:23:40.052Z",
+     "check": 1,
+     "screen": "docs",
+     "how": "LLM",
+     "from": "그림 (설명서 한 쪽)"
+    },
+    {
+     "at": "2026-10-28T11:36:23.776Z",
+     "check": 1,
+     "screen": "docs",
+     "how": "LLM",
+     "from": "설명서 목차의 'Built-in Functions'"
+    }
+   ],
+   "changes": []
+  },
+  "pet_the_piggy": {
+   "name": "pet_the_piggy",
+   "kind": "function",
+   "kindGuess": false,
+   "signature": "",
+   "meaning": "",
+   "example": "",
+   "seen": 10,
+   "first": "2026-10-28T11:36:23.776Z",
+   "last": "2026-10-28T12:47:41.985Z",
+   "sources": [
+    {
+     "at": "2026-10-28T11:36:23.776Z",
+     "check": 1,
+     "screen": "docs",
+     "how": "LLM",
+     "from": "설명서 목차의 'Built-in Functions'"
+    }
+   ],
+   "changes": []
+  },
+  "tap": {
+   "name": "tap",
+   "kind": "function",
+   "kindGuess": false,
+   "signature": "",
+   "meaning": "",
+   "example": "",
+   "seen": 10,
+   "first": "2026-10-28T11:36:23.776Z",
+   "last": "2026-10-28T12:47:41.985Z",
+   "sources": [
+    {
+     "at": "2026-10-28T11:36:23.776Z",
+     "check": 1,
+     "screen": "docs",
+     "how": "LLM",
+     "from": "설명서 목차의 'Built-in Functions'"
+    }
+   ],
+   "changes": []
+  },
+  "hay": {
+   "name": "Hay",
+   "kind": "item",
+   "kindGuess": false,
+   "signature": "",
+   "meaning": "",
+   "example": "",
+   "seen": 10,
+   "first": "2026-10-28T11:36:23.776Z",
+   "last": "2026-10-28T12:47:41.985Z",
+   "sources": [
+    {
+     "at": "2026-10-28T11:36:23.776Z",
+     "check": 1,
+     "screen": "docs",
+     "how": "LLM",
+     "from": "설명서 목차의 'Items'"
+    }
+   ],
+   "changes": []
+  },
+  "text editor": {
+   "name": "Text editor",
+   "kind": "topic",
+   "kindGuess": false,
+   "signature": "",
+   "meaning": "코딩은 코드 창에서 이루어집니다. 코드 창은 텍스트 파일을 나타냅니다.",
+   "example": "main",
+   "seen": 11,
+   "first": "2026-10-28T11:43:15.825Z",
+   "last": "2026-10-28T12:23:06.493Z",
+   "sources": [
+    {
+     "at": "2026-10-28T11:43:15.825Z",
+     "check": 3,
+     "screen": "docs",
+     "how": "LLM",
+     "from": "그림 (설명서 한 쪽)"
+    }
+   ],
+   "changes": [
+    {
+     "at": "2026-10-28T12:23:06.493Z",
+     "check": 1,
+     "field": "meaning",
+     "old": "모든 프로그래밍은 코드 창에서 이루어집니다. 코드 창은 텍스트 파일을 담고 있습니다.",
+     "now": "코딩은 코드 창에서 이루어집니다. 코드 창은 텍스트 파일을 나타냅니다."
+    },
+    {
+     "at": "2026-10-28T12:18:06.093Z",
+     "check": 4,
+     "field": "meaning",
+     "old": "이 기능은 코드 창에서 프로그래밍을 수행하는 방법을 설명합니다. 코드 창은 텍스트 파일에 해당하며, 텍스트 편집기와 유사하게 코드를 편집할 수 있습니다.",
+     "now": "모든 프로그래밍은 코드 창에서 이루어집니다. 코드 창은 텍스트 파일을 담고 있습니다."
+    },
+    {
+     "at": "2026-10-28T12:17:44.732Z",
+     "check": 3,
+     "field": "meaning",
+     "old": "모든 프로그래밍은 코드 창에서 이루어집니다. 코드 창은 텍스트 파일을 담고 있습니다.",
+     "now": "이 기능은 코드 창에서 프로그래밍을 수행하는 방법을 설명합니다. 코드 창은 텍스트 파일에 해당하며, 텍스트 편집기와 유사하게 코드를 편집할 수 있습니다."
+    },
+    {
+     "at": "2026-10-28T12:17:10.531Z",
+     "check": 1,
+     "field": "meaning",
+     "old": "코딩은 코드 창에서 이루어집니다. 각 코드 창은 텍스트 파일을 나타냅니다.",
+     "now": "모든 프로그래밍은 코드 창에서 이루어집니다. 코드 창은 텍스트 파일을 담고 있습니다."
+    },
+    {
+     "at": "2026-10-28T12:14:27.507Z",
+     "check": 6,
+     "field": "meaning",
+     "old": "모든 프로그래밍은 코드 창에서 이루어집니다. 코드 창은 텍스트 파일을 나타냅니다.",
+     "now": "코딩은 코드 창에서 이루어집니다. 각 코드 창은 텍스트 파일을 나타냅니다."
+    },
+    {
+     "at": "2026-10-28T12:13:45.907Z",
+     "check": 4,
+     "field": "meaning",
+     "old": "텍스트 편집기는 코드 창에 코드를 편집하는 데 사용됩니다. 코드가 실행 중이 아닌 경우에만 편집할 수 있습니다.",
+     "now": "모든 프로그래밍은 코드 창에서 이루어집니다. 코드 창은 텍스트 파일을 나타냅니다."
+    },
+    {
+     "at": "2026-10-28T12:12:43.486Z",
+     "check": 1,
+     "field": "meaning",
+     "old": "모든 프로그래밍은 코드 창에서 이루어집니다. 코드 창은 텍스트 파일을 담고 있습니다.",
+     "now": "텍스트 편집기는 코드 창에 코드를 편집하는 데 사용됩니다. 코드가 실행 중이 아닌 경우에만 편집할 수 있습니다."
+    },
+    {
+     "at": "2026-10-28T12:08:46.480Z",
+     "check": 4,
+     "field": "meaning",
+     "old": "코딩은 코드 창에서 이루어집니다. 코드 창은 텍스트 파일에 해당하는 코드 파일을 포함합니다.",
+     "now": "모든 프로그래밍은 코드 창에서 이루어집니다. 코드 창은 텍스트 파일을 담고 있습니다."
+    },
+    {
+     "at": "2026-10-28T12:07:42.117Z",
+     "check": 1,
+     "field": "meaning",
+     "old": "코딩 창에서 프로그래밍이 이루어집니다. 텍스트 파일에 코드가 포함되어 있으며, 텍스트 편집기와 유사하게 코드를 편집할 수 있습니다.",
+     "now": "코딩은 코드 창에서 이루어집니다. 코드 창은 텍스트 파일에 해당하는 코드 파일을 포함합니다."
+    },
+    {
+     "at": "2026-10-28T11:47:03.801Z",
+     "check": 14,
+     "field": "meaning",
+     "old": "코딩은 코드 창에서 이루어집니다. 코드 창은 텍스트 파일에 해당하며, 코드 편집기를 통해 코드를 수정할 수 있습니다.",
+     "now": "코딩 창에서 프로그래밍이 이루어집니다. 텍스트 파일에 코드가 포함되어 있으며, 텍스트 편집기와 유사하게 코드를 편집할 수 있습니다."
+    }
+   ]
+  },
+  "getting started": {
+   "name": "Getting Started",
+   "kind": "topic",
+   "kindGuess": false,
+   "signature": "",
+   "meaning": "이 창문은 게임의 모든 것에 대한 정보를 담고 있습니다. 프로그래밍을 시작하려면 'First Program' 페이지를 클릭하세요.",
+   "example": "",
+   "seen": 1,
+   "first": "2026-10-28T11:46:38.430Z",
+   "last": "2026-10-28T11:46:38.430Z",
+   "sources": [
+    {
+     "at": "2026-10-28T11:46:38.430Z",
+     "check": 13,
+     "screen": "docs",
+     "how": "LLM",
+     "from": "그림 (설명서 한 쪽)"
+    }
+   ],
+   "changes": []
+  },
+  "main": {
+   "name": "main",
+   "kind": "topic",
+   "kindGuess": false,
+   "signature": "",
+   "meaning": "이 페이지는 코드 편집 방법, 프로그램 실행 방법, 코드 파일 생성 방법, 창 고정 방법, 코드 자동 완성 기능, 언어 학습 난이도, 파이썬과의 유사성 등을 설명합니다. 초보 프로그래머도 쉽게 따라 할 수 있도록 단계별로 언어가 풀립니다.",
+   "example": "main\nx",
+   "seen": 1,
+   "first": "2026-10-28T12:23:19.987Z",
+   "last": "2026-10-28T12:23:19.987Z",
+   "sources": [
+    {
+     "at": "2026-10-28T12:23:19.987Z",
+     "check": 1,
+     "screen": "docs",
+     "how": "LLM",
+     "from": "그림 (설명서 한 쪽)"
+    }
+   ],
+   "changes": []
+  },
+  "harvest()": {
+   "name": "harvest()",
+   "kind": "function",
+   "kindGuess": false,
+   "signature": "harvest()",
+   "meaning": "수확 명령입니다. 드론이 작물을 수확하도록 지시합니다.",
+   "example": "harvest()",
+   "seen": 2,
+   "first": "2026-10-28T12:23:26.478Z",
+   "last": "2026-10-28T12:23:33.037Z",
+   "sources": [
+    {
+     "at": "2026-10-28T12:23:26.478Z",
+     "check": 1,
+     "screen": "docs",
+     "how": "LLM",
+     "from": "그림 (설명서 한 쪽)"
+    }
+   ],
+   "changes": [
+    {
+     "at": "2026-10-28T12:23:33.037Z",
+     "check": 1,
+     "field": "meaning",
+     "old": "수확 명령입니다. 드론이 작물을 수확하도록 합니다.",
+     "now": "수확 명령입니다. 드론이 작물을 수확하도록 지시합니다."
+    }
+   ]
+  },
+  "gntitia": {
+   "name": "gntitiA",
+   "kind": "entity",
+   "kindGuess": false,
+   "signature": "",
+   "meaning": "",
+   "example": "",
+   "seen": 1,
+   "first": "2026-10-28T12:23:54.517Z",
+   "last": "2026-10-28T12:23:54.517Z",
+   "sources": [
+    {
+     "at": "2026-10-28T12:23:54.517Z",
+     "check": 2,
+     "screen": "docs",
+     "how": "LLM",
+     "from": "설명서 목차의 'Entities'"
+    }
+   ],
+   "changes": []
+  },
+  "hayest": {
+   "name": "hayest",
+   "kind": "function",
+   "kindGuess": true,
+   "signature": "hayest(…)",
+   "meaning": "",
+   "example": "",
+   "seen": 1,
+   "first": "2026-10-28T12:41:06.607Z",
+   "last": "2026-10-28T12:41:06.607Z",
+   "sources": [
+    {
+     "at": "2026-10-28T12:41:06.607Z",
+     "check": 4,
+     "screen": "play",
+     "how": "OCR 규칙",
+     "from": "hayest( )"
+    }
+   ],
+   "changes": []
+  },
+  "haervest": {
+   "name": "haervest",
+   "kind": "function",
+   "kindGuess": true,
+   "signature": "haervest(…)",
+   "meaning": "",
+   "example": "",
+   "seen": 1,
+   "first": "2026-10-28T12:41:21.289Z",
+   "last": "2026-10-28T12:41:21.289Z",
+   "sources": [
+    {
+     "at": "2026-10-28T12:41:21.289Z",
+     "check": 5,
+     "screen": "play",
+     "how": "OCR 규칙",
+     "from": "haervest()"
+    }
+   ],
+   "changes": []
+  },
+  "vest": {
+   "name": "vest",
+   "kind": "function",
+   "kindGuess": true,
+   "signature": "vest(…)",
+   "meaning": "",
+   "example": "",
+   "seen": 4,
+   "first": "2026-10-28T12:41:21.289Z",
+   "last": "2026-10-28T12:42:04.955Z",
+   "sources": [
+    {
+     "at": "2026-10-28T12:41:21.289Z",
+     "check": 5,
+     "screen": "play",
+     "how": "OCR 규칙",
+     "from": "vest()"
+    }
+   ],
+   "changes": []
+  },
+  "hahharvest": {
+   "name": "hahharvest",
+   "kind": "function",
+   "kindGuess": true,
+   "signature": "hahharvest(…)",
+   "meaning": "",
+   "example": "",
+   "seen": 3,
+   "first": "2026-10-28T12:41:36.470Z",
+   "last": "2026-10-28T12:42:04.955Z",
+   "sources": [
+    {
+     "at": "2026-10-28T12:41:36.470Z",
+     "check": 6,
+     "screen": "play",
+     "how": "OCR 규칙",
+     "from": "hahharvest()"
+    }
+   ],
+   "changes": []
+  }
+ },
+ "state": {
+  "at": "2026-10-28T12:49:31.261Z",
+  "check": 11,
+  "screen": "play",
+  "facts": []
+ },
+ "pagesRead": [
+  "First Program"
+ ]
+}

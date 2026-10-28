@@ -31,6 +31,9 @@ from pathlib import Path
 print = functools.partial(print, flush=True)  # 로그를 파일로 넘겨도 바로 보이도록
 
 GAME_DIR = Path(__file__).resolve().parent.parent / "game"
+# 농부 게임에서 몰리가 화면을 읽으며 쌓는 문법 사전. 페이지가 통째로 보내면 그대로 저장한다.
+FARM_DICT = GAME_DIR / "knowledge" / "farm_dict.json"
+FARM_DICT_MAX = 4 * 2**20
 
 # 허용할 키만 화이트리스트로 둔다. 브릿지가 임의의 문자를 칠 수 있으면 곤란하다.
 # ESC는 뺐다. 대부분의 게임에서 일시정지/종료라, 봇이 실수로 누르면 게임이 꺼진다.
@@ -49,6 +52,15 @@ if sys.platform == "win32":
     import ctypes
 
     _user32 = ctypes.windll.user32
+    # 화면 배율(125%, 150%…)을 쓰면 DPI 를 모르는 프로그램은 좌표를 배율만큼 줄여서 받는다.
+    # 화면 공유 캡처는 실제 픽셀이라, 여기서도 실제 픽셀로 맞춰야 클릭 자리가 맞는다.
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)  # 모니터별 DPI 인식
+    except Exception:
+        try:
+            _user32.SetProcessDPIAware()
+        except Exception:
+            pass
 
 
 def foreground_title() -> str:
@@ -85,17 +97,32 @@ def find_window(part: str):
     return found[0] if found else None
 
 
-def bring_to_front(hwnd):
-    """윈도우는 백그라운드 프로세스가 창을 앞으로 꺼내는 걸 막는다.
-    Alt 를 한 번 눌렀다 떼면 '사용자 입력이 있었다'로 쳐서 허용된다."""
+def bring_to_front(hwnd) -> bool:
+    """대상 창을 맨 앞으로. 실제로 맨 앞이 됐는지 돌려준다 — 못 꺼냈는데 누르면 브라우저를 누르게 된다.
+    윈도우는 백그라운드 프로세스가 창을 앞으로 꺼내는 걸 막는다.
+    Alt 를 한 번 눌렀다 떼면 '사용자 입력이 있었다'로 쳐서 허용되고, 그래도 안 되면 입력 스레드를 붙여서 한다."""
     if _user32.GetForegroundWindow() == hwnd:
-        return
+        return True
     if _user32.IsIconic(hwnd):
         _user32.ShowWindow(hwnd, 9)  # SW_RESTORE
     _user32.keybd_event(0x12, 0, 0, 0)
     _user32.keybd_event(0x12, 0, 2, 0)
     _user32.SetForegroundWindow(hwnd)
-    time.sleep(0.08)
+    time.sleep(0.12)
+    if _user32.GetForegroundWindow() == hwnd:
+        return True
+    fg = _user32.GetForegroundWindow()
+    me = ctypes.windll.kernel32.GetCurrentThreadId()
+    other = _user32.GetWindowThreadProcessId(fg, None)
+    target = _user32.GetWindowThreadProcessId(hwnd, None)
+    for t in {other, target} - {me}:
+        _user32.AttachThreadInput(me, t, True)
+    _user32.BringWindowToTop(hwnd)
+    _user32.SetForegroundWindow(hwnd)
+    for t in {other, target} - {me}:
+        _user32.AttachThreadInput(me, t, False)
+    time.sleep(0.12)
+    return _user32.GetForegroundWindow() == hwnd
 
 
 def window_client_rect(hwnd=None):
@@ -113,6 +140,44 @@ def window_client_rect(hwnd=None):
     pt = wintypes.POINT(0, 0)
     _user32.ClientToScreen(hwnd, ctypes.byref(pt))
     return pt.x, pt.y, rc.right, rc.bottom
+
+
+def window_frame_rect(hwnd):
+    """창 전체(제목줄 포함)를 화면 좌표 (x, y, w, h) 로. 창 하나만 공유하면 캡처되는 범위가 이것이다.
+    GetWindowRect 는 눈에 안 보이는 크기 조절 테두리까지 넣으므로 DWM 이 그리는 실제 경계를 쓴다."""
+    from ctypes import wintypes
+
+    rc = wintypes.RECT()
+    try:
+        ok = ctypes.windll.dwmapi.DwmGetWindowAttribute(hwnd, 9, ctypes.byref(rc), ctypes.sizeof(rc)) == 0
+    except Exception:
+        ok = False
+    if not ok and not _user32.GetWindowRect(hwnd, ctypes.byref(rc)):
+        return None
+    return rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top
+
+
+def in_client(hwnd, x, y, margin=2) -> bool:
+    """화면 좌표 (x, y) 가 게임 내용 영역 안인가. 제목줄의 ─ □ ✕ 와 창 테두리는 내용 영역 밖이다.
+    10-28 에 봇이 게임을 꺼버린 뒤로, 내용 영역 밖은 어떤 경우에도 누르지 않는다."""
+    r = window_client_rect(hwnd)
+    if not r:
+        return False
+    return r[0] + margin <= x < r[0] + r[2] - margin and r[1] + margin <= y < r[1] + r[3] - margin
+
+
+def capture_rect(hwnd, cw=0, ch=0):
+    """공유 화면의 비율 좌표를 어느 영역에 대어야 하나. 캡처 크기(cw×ch)와 가장 가까운 쪽을 고른다.
+    전체 화면 게임이면 둘이 같고, 창 모드면 보통 제목줄까지 들어간 '창 전체'가 맞는다."""
+    client = window_client_rect(hwnd)
+    frame = window_frame_rect(hwnd)
+    options = [("내용 영역", client), ("창 전체", frame)]
+    options = [(n, r) for n, r in options if r and r[2] > 0 and r[3] > 0]
+    if not options:
+        return None, None
+    if cw and ch:
+        return min(options, key=lambda o: abs(o[1][2] - cw) + abs(o[1][3] - ch))
+    return options[0]
 
 
 def window_ok() -> bool:
@@ -179,26 +244,230 @@ class MouseClicker:
     def __init__(self, live: bool):
         self.live = live and _user32 is not None
 
-    def click(self, hwnd, fx: float, fy: float, button: str = "left"):
-        """fx, fy 는 창 내용 영역 안의 비율(0~1). 실제로 누른 화면 좌표를 돌려준다.
+    def click(self, hwnd, fx: float, fy: float, button: str = "left", cw: int = 0, ch: int = 0) -> dict:
+        """fx, fy 는 공유 화면 안의 비율(0~1). cw, ch 는 공유 화면의 픽셀 크기 (어느 영역 기준인지 고르는 데 쓴다).
         페이지에서 클릭하면 브라우저가 맨 앞이 되므로, 누르기 전에 대상 창을 앞으로 꺼낸다."""
         if button not in self.DOWN_UP or not (0 <= fx <= 1 and 0 <= fy <= 1):
-            return None
-        if self.live:
-            bring_to_front(hwnd)
-        rect = window_client_rect(hwnd)
-        if not rect or rect[2] <= 0 or rect[3] <= 0:
-            return None
+            return {"error": "좌표가 0~1 밖입니다"}
+        if self.live and not bring_to_front(hwnd):
+            return {"error": "게임 창을 맨 앞으로 꺼내지 못해 누르지 않았습니다"}
+        basis, rect = capture_rect(hwnd, cw, ch)
+        if not rect:
+            return {"error": "게임 창 크기를 알 수 없습니다"}
         x = rect[0] + round(fx * (rect[2] - 1))
         y = rect[1] + round(fy * (rect[3] - 1))
+        if not in_client(hwnd, x, y):
+            return {"error": "게임 내용 영역 밖(제목줄·테두리)이라 누르지 않았습니다", "outside": True, "at_refused": [x, y]}
         if self.live:
             down, up = self.DOWN_UP[button]
+            # 게임(Unity)은 프레임마다 입력을 읽는다. 순간이동 후 바로 누르면 버튼이 '마우스가 올라옴'을
+            # 못 느끼거나, 짧게 눌렀다 뗀 걸 통째로 놓친다. 올려놓고, 살짝 흔들고, 넉넉히 누른다.
             _user32.SetCursorPos(x, y)
-            time.sleep(0.02)
-            _user32.mouse_event(down, 0, 0, 0, 0)
+            time.sleep(0.06)
+            _user32.SetCursorPos(x + 1, y)
             time.sleep(0.03)
+            _user32.SetCursorPos(x, y)
+            time.sleep(0.05)
+            _user32.mouse_event(down, 0, 0, 0, 0)
+            time.sleep(0.08)
             _user32.mouse_event(up, 0, 0, 0, 0)
-        return x, y
+        return {"at": [x, y], "basis": basis, "rect": list(rect)}
+
+    def drag(self, hwnd, f1, f2, cw: int = 0, ch: int = 0) -> dict:
+        """왼쪽 버튼을 누른 채 f1 → f2 로 끈다 (창 옮기기). 두 점 모두 게임 내용 영역 안이어야 한다."""
+        if not all(0 <= v <= 1 for v in (*f1, *f2)):
+            return {"error": "좌표가 0~1 밖입니다"}
+        if self.live and not bring_to_front(hwnd):
+            return {"error": "게임 창을 맨 앞으로 꺼내지 못해 끌지 않았습니다"}
+        basis, rect = capture_rect(hwnd, cw, ch)
+        if not rect:
+            return {"error": "게임 창 크기를 알 수 없습니다"}
+        pt = lambda f: (rect[0] + round(f[0] * (rect[2] - 1)), rect[1] + round(f[1] * (rect[3] - 1)))
+        (x1, y1), (x2, y2) = pt(f1), pt(f2)
+        if not (in_client(hwnd, x1, y1) and in_client(hwnd, x2, y2)):
+            return {"error": "게임 내용 영역 밖(제목줄·테두리)이라 끌지 않았습니다", "outside": True}
+        if self.live:
+            _user32.SetCursorPos(x1, y1)
+            time.sleep(0.08)
+            _user32.SetCursorPos(x1 + 1, y1)
+            time.sleep(0.03)
+            _user32.SetCursorPos(x1, y1)
+            time.sleep(0.05)
+            _user32.mouse_event(0x0002, 0, 0, 0, 0)  # 왼쪽 누름
+            time.sleep(0.1)
+            # 한 번에 순간이동하면 게임이 끌기로 못 알아본다. 20번에 나눠 옮긴다.
+            for i in range(1, 21):
+                _user32.SetCursorPos(x1 + (x2 - x1) * i // 20, y1 + (y2 - y1) * i // 20)
+                time.sleep(0.02)
+            time.sleep(0.1)
+            _user32.mouse_event(0x0004, 0, 0, 0, 0)  # 뗌
+        return {"from": [x1, y1], "to": [x2, y2], "basis": basis}
+
+    def scroll(self, hwnd, fx: float, fy: float, clicks: int, cw: int = 0, ch: int = 0) -> dict:
+        """마우스 휠. 휠은 커서 밑에 있는 창·패널만 움직이므로 먼저 (fx, fy) 로 커서를 옮긴다.
+        clicks 가 양수면 아래로, 음수면 위로. 한 칸 = 휠 한 눈금."""
+        if not (0 <= fx <= 1 and 0 <= fy <= 1):
+            return {"error": "좌표가 0~1 밖입니다"}
+        clicks = max(-15, min(15, int(clicks)))
+        if not clicks:
+            return {"error": "스크롤 양이 0입니다"}
+        if self.live and not bring_to_front(hwnd):
+            return {"error": "게임 창을 맨 앞으로 꺼내지 못해 스크롤하지 않았습니다"}
+        basis, rect = capture_rect(hwnd, cw, ch)
+        if not rect:
+            return {"error": "게임 창 크기를 알 수 없습니다"}
+        x = rect[0] + round(fx * (rect[2] - 1))
+        y = rect[1] + round(fy * (rect[3] - 1))
+        if not in_client(hwnd, x, y):
+            return {"error": "게임 내용 영역 밖(제목줄·테두리)이라 스크롤하지 않았습니다", "outside": True}
+        if self.live:
+            _user32.SetCursorPos(x, y)
+            time.sleep(0.06)
+            # 윈도우 휠 값은 위로가 양수다. 한 눈금씩 나눠 보내야 게임이 칸 수를 제대로 센다.
+            step = -120 if clicks > 0 else 120
+            for _ in range(abs(clicks)):
+                _user32.mouse_event(0x0800, 0, 0, step, 0)  # MOUSEEVENTF_WHEEL
+                time.sleep(0.04)
+        return {"at": [x, y], "basis": basis, "clicks": clicks}
+
+
+class Typer:
+    """글자 입력. 코드 게임이라 편집기에 코드를 쳐야 한다.
+    SendInput 의 유니코드 모드로 보내서 한글·기호도 자판 배치와 상관없이 그대로 들어간다.
+    ESC 는 비상 정지 키라 여기서도 절대 보내지 않는다."""
+
+    VK = {
+        "enter": 0x0D, "tab": 0x09, "backspace": 0x08, "delete": 0x2E, "space": 0x20,
+        "up": 0x26, "down": 0x28, "left": 0x25, "right": 0x27, "home": 0x24, "end": 0x23,
+        "pageup": 0x21, "pagedown": 0x22, "f1": 0x70, "f5": 0x74,
+    }
+    # ctrl 조합은 편집에 필요한 것만
+    CTRL = {"ctrl+a": 0x41, "ctrl+c": 0x43, "ctrl+v": 0x56, "ctrl+x": 0x58, "ctrl+z": 0x5A, "ctrl+s": 0x53}
+    MAX_TEXT = 4000
+
+    def __init__(self, live: bool):
+        self.live = live and _user32 is not None
+        if not self.live:
+            return
+        from ctypes import wintypes
+
+        class KEYBDINPUT(ctypes.Structure):
+            _fields_ = [("wVk", wintypes.WORD), ("wScan", wintypes.WORD), ("dwFlags", wintypes.DWORD),
+                        ("time", wintypes.DWORD), ("dwExtraInfo", ctypes.c_size_t)]
+
+        class MOUSEINPUT(ctypes.Structure):  # 공용체 크기를 맞추려고만 둔다
+            _fields_ = [("dx", wintypes.LONG), ("dy", wintypes.LONG), ("mouseData", wintypes.DWORD),
+                        ("dwFlags", wintypes.DWORD), ("time", wintypes.DWORD), ("dwExtraInfo", ctypes.c_size_t)]
+
+        class _U(ctypes.Union):
+            _fields_ = [("ki", KEYBDINPUT), ("mi", MOUSEINPUT)]
+
+        class INPUT(ctypes.Structure):
+            _fields_ = [("type", wintypes.DWORD), ("u", _U)]
+
+        self._KI, self._INPUT = KEYBDINPUT, INPUT
+
+    def _send(self, vk=0, scan=0, flags=0):
+        inp = self._INPUT(type=1)  # INPUT_KEYBOARD
+        inp.u.ki = self._KI(vk, scan, flags, 0, 0)
+        _user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(inp))
+
+    def _vk(self, vk):
+        self._send(vk=vk)
+        time.sleep(0.01)
+        self._send(vk=vk, flags=0x0002)  # KEYUP
+
+    def type_text(self, text: str):
+        """줄바꿈은 Enter, 탭은 공백 4칸으로 보낸다."""
+        text = text.replace("\r\n", "\n").replace("\t", "    ")[: self.MAX_TEXT]
+        if not self.live:
+            return len(text)
+        for ch in text:
+            if ch == "\n":
+                self._vk(0x0D)
+            elif ch == "\x1b":
+                continue
+            else:
+                code = ord(ch)
+                self._send(scan=code, flags=0x0004)           # KEYEVENTF_UNICODE
+                self._send(scan=code, flags=0x0004 | 0x0002)
+            time.sleep(0.008)
+        return len(text)
+
+    def _clip_get(self):
+        k = ctypes.windll.kernel32
+        u = _user32
+        k.GlobalLock.restype = ctypes.c_void_p
+        u.GetClipboardData.restype = ctypes.c_void_p
+        if not u.OpenClipboard(None):
+            return None
+        try:
+            h = u.GetClipboardData(13)  # CF_UNICODETEXT
+            if not h:
+                return None
+            p = k.GlobalLock(ctypes.c_void_p(h))
+            try:
+                return ctypes.wstring_at(p)
+            finally:
+                k.GlobalUnlock(ctypes.c_void_p(h))
+        finally:
+            u.CloseClipboard()
+
+    def _clip_set(self, text: str) -> bool:
+        k = ctypes.windll.kernel32
+        u = _user32
+        k.GlobalAlloc.restype = ctypes.c_void_p
+        k.GlobalLock.restype = ctypes.c_void_p
+        data = ctypes.create_unicode_buffer(text)
+        size = ctypes.sizeof(data)
+        h = k.GlobalAlloc(0x0002, size)  # GMEM_MOVEABLE
+        if not h:
+            return False
+        p = k.GlobalLock(ctypes.c_void_p(h))
+        ctypes.memmove(p, data, size)
+        k.GlobalUnlock(ctypes.c_void_p(h))
+        for _ in range(10):  # 다른 프로그램이 클립보드를 잡고 있으면 잠깐 기다린다
+            if u.OpenClipboard(None):
+                break
+            time.sleep(0.05)
+        else:
+            return False
+        try:
+            u.EmptyClipboard()
+            u.SetClipboardData.argtypes = [ctypes.c_uint, ctypes.c_void_p]
+            return bool(u.SetClipboardData(13, ctypes.c_void_p(h)))
+        finally:
+            u.CloseClipboard()
+
+    def paste(self, text: str) -> int:
+        """클립보드에 넣고 Ctrl+V. 한 글자씩 치면 게임 편집기의 자동 완성·자동 들여쓰기가 끼어들어
+        코드가 망가진다 (10-28). 붙여넣기는 그대로 들어간다. 원래 클립보드 글자는 끝나고 되돌린다."""
+        text = text.replace("\r\n", "\n").replace("\t", "    ")[: self.MAX_TEXT]
+        if not self.live:
+            return len(text)
+        old = self._clip_get()
+        if not self._clip_set(text):
+            raise RuntimeError("클립보드에 넣지 못했습니다")
+        time.sleep(0.05)
+        self.press("ctrl+v")
+        time.sleep(0.25)
+        if old is not None:
+            self._clip_set(old)
+        return len(text)
+
+    def press(self, key: str) -> bool:
+        key = key.lower().strip()
+        if key in self.CTRL:
+            if self.live:
+                self._send(vk=0x11)
+                self._vk(self.CTRL[key])
+                self._send(vk=0x11, flags=0x0002)
+            return True
+        if key in self.VK:
+            if self.live:
+                self._vk(self.VK[key])
+            return True
+        return False
 
 
 def watch_esc(on_esc):
@@ -234,8 +503,15 @@ def llm_models():
     return api_models() if LLM == "api" else ollama_models()
 
 
-def llm_ask(model: str, prompt: str, image_b64: str | None, timeout: int):
-    return (api_ask if LLM == "api" else ollama_ask)(model, prompt, image_b64, timeout)
+# 마지막 Ollama 호출의 시간 내역. 페이지가 '어디서 느린지' 보여줄 때 쓴다.
+LAST_STATS: dict = {}
+
+
+def llm_ask(model: str, prompt: str, image_b64: str | None, timeout: int,
+            as_json: bool = False, max_tokens: int | None = None):
+    if LLM == "api":
+        return api_ask(model, prompt, image_b64, timeout, max_tokens)
+    return ollama_ask(model, prompt, image_b64, timeout, as_json, max_tokens)
 
 
 def _api_request(path: str, payload: dict | None, timeout: int):
@@ -265,7 +541,7 @@ def api_models():
     return sorted(names) or API_DEFAULT_MODELS
 
 
-def api_ask(model: str, prompt: str, image_b64: str | None, timeout: int):
+def api_ask(model: str, prompt: str, image_b64: str | None, timeout: int, max_tokens: int | None = None):
     """OpenAI 호환 /chat/completions 로 한 번 물어본다. 이미지는 data URL 로 붙인다."""
     content: list[dict] = [{"type": "text", "text": prompt}]
     if image_b64:
@@ -276,7 +552,7 @@ def api_ask(model: str, prompt: str, image_b64: str | None, timeout: int):
             "model": model,
             "messages": [{"role": "user", "content": content}],
             "temperature": 0.2,
-            "max_tokens": 900,
+            "max_tokens": max_tokens or 900,
         },
         timeout,
     )
@@ -291,7 +567,8 @@ def ollama_models():
     return [m["name"] for m in data.get("models", [])]
 
 
-def ollama_ask(model: str, prompt: str, image_b64: str | None, timeout: int):
+def ollama_ask(model: str, prompt: str, image_b64: str | None, timeout: int,
+               as_json: bool = False, max_tokens: int | None = None):
     """Ollama에 한 번 물어본다. 레벨업 화면은 게임이 멈춰 있어서 몇 초 걸려도 괜찮다."""
     import urllib.request
 
@@ -306,8 +583,11 @@ def ollama_ask(model: str, prompt: str, image_b64: str | None, timeout: int):
         # 모델이 VRAM에서 내려가면 다음 레벨업에서 다시 올리느라 40초 넘게 걸린다.
         # 올라가 있으면 4초. 계속 물고 있게 둔다.
         "keep_alive": "30m",
-        "options": {"temperature": 0.2, "num_predict": 900},
+        "options": {"temperature": 0.2, "num_predict": max_tokens or 900},
     }
+    # 농부 페이지처럼 JSON 만 받는 곳은 Ollama 가 문법에 맞는 JSON 만 내게 묶는다 (앞뒤 잡담이 없어 짧아진다)
+    if as_json:
+        payload["format"] = "json"
     if image_b64:
         payload["images"] = [image_b64]
     req = urllib.request.Request(
@@ -317,6 +597,15 @@ def ollama_ask(model: str, prompt: str, image_b64: str | None, timeout: int):
     )
     with urllib.request.urlopen(req, timeout=timeout) as r:
         d = json.load(r)
+    ns = 1e9
+    LAST_STATS.clear()
+    LAST_STATS.update({
+        "load": round(d.get("load_duration", 0) / ns, 2),
+        "read": round(d.get("prompt_eval_duration", 0) / ns, 2),
+        "write": round(d.get("eval_duration", 0) / ns, 2),
+        "in_tokens": d.get("prompt_eval_count", 0),
+        "out_tokens": d.get("eval_count", 0),
+    })
     text = d.get("response") or ""
     if not text.strip():
         # 생각만 하다 끝난 경우, 그 안에 답이 들어있을 수 있어 그대로 넘긴다
@@ -334,7 +623,9 @@ class Ocr:
 
     SCRIPT = Path(__file__).resolve().parent / "ocr.ps1"
 
-    def __init__(self):
+    def __init__(self, lang: str = "ko"):
+        # 엔진 언어. 한글 게임(뱀서)은 ko, 영어로 돌리는 게임(농부)은 en-US 가 코드 글꼴까지 훨씬 잘 읽는다.
+        self.want = lang
         self.proc = None
         self.lang = ""
         self.lock = threading.Lock()
@@ -342,7 +633,7 @@ class Ocr:
     def _start(self):
         flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         self.proc = subprocess.Popen(
-            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(self.SCRIPT)],
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(self.SCRIPT), "-Lang", self.want],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -654,6 +945,7 @@ async def main_async(args):
 
     presser = KeyPresser(args.live)
     clicker = MouseClicker(args.live)
+    typer = Typer(args.live)
     # halted: ESC 로 멈춘 상태. 페이지에서 '조작 시작'(resume)을 다시 누를 때까지 입력을 막는다.
     state = {"last_msg": 0.0, "last_block_log": 0.0, "halted": False}
     clients = set()
@@ -675,6 +967,14 @@ async def main_async(args):
 
     threading.Thread(target=watch_esc, args=(on_esc,), daemon=True).start()
     ocr = Ocr()
+    # 페이지가 언어를 고를 수 있다 ({"type": "ocr", "lang": "en-US"}). 언어마다 프로세스를 하나씩 띄워 둔다.
+    ocrs = {"ko": ocr}
+
+    def ocr_for(lang):
+        lang = lang if lang in ("ko", "en-US") else "ko"
+        if lang not in ocrs:
+            ocrs[lang] = Ocr(lang)
+        return ocrs[lang]
 
     # 첫 요청 때 띄우면 그 한 번이 1~2초 늦는다. 미리 띄워둔다.
     def warm_ocr():
@@ -744,6 +1044,29 @@ async def main_async(args):
                     }))
                     continue
 
+                # 농부 문법 사전. 키와 무관하다.
+                if kind == "kb_load":
+                    try:
+                        data = json.loads(FARM_DICT.read_text(encoding="utf-8")) if FARM_DICT.exists() else None
+                        await ws.send(json.dumps({"id": msg.get("id"), "dict": data}))
+                    except Exception as e:
+                        await ws.send(json.dumps({"id": msg.get("id"), "error": str(e)}))
+                    continue
+                if kind == "kb_save":
+                    try:
+                        body = json.dumps(msg.get("dict"), ensure_ascii=False, indent=1)
+                        if len(body.encode("utf-8")) > FARM_DICT_MAX:
+                            raise ValueError("사전이 너무 큽니다")
+                        # 쓰다가 죽어도 이전 파일이 망가지지 않게 임시 파일에 쓰고 바꿔치기한다
+                        tmp = FARM_DICT.with_suffix(".tmp")
+                        tmp.write_text(body, encoding="utf-8")
+                        os.replace(tmp, FARM_DICT)
+                        await ws.send(json.dumps({"id": msg.get("id"), "ok": True}))
+                    except Exception as e:
+                        print(f"[사전 저장 실패] {e}")
+                        await ws.send(json.dumps({"id": msg.get("id"), "error": str(e)}))
+                    continue
+
                 # 폰으로 보기. 키와 무관하다.
                 if kind in ("remote_push", "remote_info", "remote_code", "remote_revoke", "remote_unhold"):
                     rid = msg.get("id")
@@ -784,7 +1107,7 @@ async def main_async(args):
                     continue
 
                 # ESC 로 멈췄으면 아무것도 누르지 않는다
-                if kind in ("move", "tap", "click") and state["halted"]:
+                if kind in ("move", "tap", "click", "scroll", "drag", "type", "key", "paste") and state["halted"]:
                     if presser.held:
                         presser.release_all()
                     await ws.send(json.dumps({"id": msg.get("id"), "ok": True, "live": args.live, "halted": True}))
@@ -803,7 +1126,7 @@ async def main_async(args):
                     continue
 
                 # 폰에서 정지했으면 키를 보내지 않는다 (PC 탭이 아직 모르고 계속 보내도)
-                if kind in ("move", "tap", "click") and remote is not None and remote.hold:
+                if kind in ("move", "tap", "click", "scroll", "drag", "type", "key", "paste") and remote is not None and remote.hold:
                     if presser.held:
                         presser.release_all()
                     await ws.send(json.dumps({"ok": True, "live": args.live, "held": True}))
@@ -827,10 +1150,83 @@ async def main_async(args):
                     if not hwnd:
                         await ws.send(json.dumps({"id": msg.get("id"), "ok": False, "live": args.live, "no_window": True}))
                         continue
-                    at = clicker.click(hwnd, fx, fy, str(msg.get("button", "left")))
-                    if at and not args.live:
-                        print(f"[안전모드] 클릭 {msg.get('button', 'left')} @ {at[0]},{at[1]}")
-                    await ws.send(json.dumps({"id": msg.get("id"), "ok": bool(at), "live": args.live, "at": at}))
+                    res = clicker.click(hwnd, fx, fy, str(msg.get("button", "left")),
+                                        int(msg.get("cw") or 0), int(msg.get("ch") or 0))
+                    if res.get("at"):
+                        tag = "클릭" if args.live else "[안전모드] 클릭"
+                        print(f"{tag} {msg.get('button', 'left')} @ {res['at'][0]},{res['at'][1]} ({res['basis']} 기준)")
+                    else:
+                        print(f"[클릭 실패] {res.get('error')}")
+                    await ws.send(json.dumps({"id": msg.get("id"), "ok": bool(res.get("at")), "live": args.live, **res}))
+                    continue
+                elif kind == "drag":
+                    hwnd = find_window(WINDOW)
+                    if not hwnd:
+                        await ws.send(json.dumps({"id": msg.get("id"), "ok": False, "live": args.live, "no_window": True}))
+                        continue
+                    try:
+                        f1 = (float(msg.get("x1")), float(msg.get("y1")))
+                        f2 = (float(msg.get("x2")), float(msg.get("y2")))
+                    except (TypeError, ValueError):
+                        f1 = f2 = (-1, -1)
+                    res = clicker.drag(hwnd, f1, f2, int(msg.get("cw") or 0), int(msg.get("ch") or 0))
+                    if res.get("from"):
+                        tag = "끌기" if args.live else "[안전모드] 끌기"
+                        print(f"{tag} {res['from'][0]},{res['from'][1]} → {res['to'][0]},{res['to'][1]}")
+                    else:
+                        print(f"[끌기 실패] {res.get('error')}")
+                    await ws.send(json.dumps({"id": msg.get("id"), "ok": bool(res.get("from")), "live": args.live, **res}))
+                    continue
+                elif kind == "scroll":
+                    hwnd = find_window(WINDOW)
+                    if not hwnd:
+                        await ws.send(json.dumps({"id": msg.get("id"), "ok": False, "live": args.live, "no_window": True}))
+                        continue
+                    try:
+                        fx, fy, n = float(msg.get("x")), float(msg.get("y")), int(msg.get("clicks"))
+                    except (TypeError, ValueError):
+                        fx = fy = -1
+                        n = 0
+                    res = clicker.scroll(hwnd, fx, fy, n, int(msg.get("cw") or 0), int(msg.get("ch") or 0))
+                    if res.get("at"):
+                        tag = "스크롤" if args.live else "[안전모드] 스크롤"
+                        print(f"{tag} {'아래' if n > 0 else '위'} {abs(res['clicks'])}칸 @ {res['at'][0]},{res['at'][1]}")
+                    else:
+                        print(f"[스크롤 실패] {res.get('error')}")
+                    await ws.send(json.dumps({"id": msg.get("id"), "ok": bool(res.get("at")), "live": args.live, **res}))
+                    continue
+                elif kind in ("type", "key", "paste"):
+                    # 클릭과 같이 대상 창을 직접 찾아 앞으로 꺼낸 뒤 보낸다
+                    hwnd = find_window(WINDOW)
+                    if not hwnd:
+                        await ws.send(json.dumps({"id": msg.get("id"), "ok": False, "live": args.live, "no_window": True}))
+                        continue
+                    if args.live and not bring_to_front(hwnd):
+                        await ws.send(json.dumps({"id": msg.get("id"), "ok": False, "live": args.live,
+                                                  "error": "게임 창을 맨 앞으로 꺼내지 못해 입력하지 않았습니다"}))
+                        continue
+                    if kind == "paste":
+                        text = str(msg.get("text", ""))
+                        try:
+                            n = typer.paste(text)
+                        except Exception as e:
+                            await ws.send(json.dumps({"id": msg.get("id"), "ok": False, "live": args.live, "error": str(e)}))
+                            continue
+                        print(f"{'붙여넣기' if args.live else '[안전모드] 붙여넣기'} {n}글자: {text[:60]!r}")
+                        await ws.send(json.dumps({"id": msg.get("id"), "ok": True, "live": args.live, "typed": n}))
+                    elif kind == "type":
+                        text = str(msg.get("text", ""))
+                        n = typer.type_text(text)
+                        if not args.live:
+                            print(f"[안전모드] 입력 {n}글자: {text[:60]!r}")
+                        await ws.send(json.dumps({"id": msg.get("id"), "ok": True, "live": args.live, "typed": n}))
+                    else:
+                        key = str(msg.get("key", ""))
+                        ok = typer.press(key)
+                        if ok and not args.live:
+                            print(f"[안전모드] 키 {key}")
+                        await ws.send(json.dumps({"id": msg.get("id"), "ok": ok, "live": args.live,
+                                                  "error": None if ok else f"허용되지 않은 키: {key}"}))
                     continue
                 elif kind == "stop":
                     presser.release_all()
@@ -853,18 +1249,22 @@ async def main_async(args):
                             msg.get("prompt", ""),
                             msg.get("image"),
                             int(msg.get("timeout", 30)),
+                            bool(msg.get("json")),
+                            int(msg["max_tokens"]) if msg.get("max_tokens") else None,
                         )
                         took = time.time() - t0
                         print(f"[LLM] {took:.1f}초 · {text.strip()[:80]}")
-                        await ws.send(json.dumps({"id": msg.get("id"), "text": text, "took": took}))
+                        await ws.send(json.dumps({"id": msg.get("id"), "text": text, "took": took,
+                                                  "stats": dict(LAST_STATS) if LLM != "api" else None}))
                     except Exception as e:
                         print(f"[LLM 실패] {e}")
                         await ws.send(json.dumps({"id": msg.get("id"), "error": str(e)}))
                     continue
                 elif kind == "ocr":
+                    eng = ocr_for(msg.get("lang"))
                     try:
                         res = await asyncio.wait_for(
-                            asyncio.to_thread(ocr.read, msg.get("image") or ""), timeout=15
+                            asyncio.to_thread(eng.read, msg.get("image") or ""), timeout=15
                         )
                         if res.get("error"):
                             print(f"[OCR 실패] {res['error']}")
@@ -873,7 +1273,7 @@ async def main_async(args):
                             print(f"[OCR] {res.get('ms', 0)}ms · {words[:80] or '(글자 없음)'}")
                         await ws.send(json.dumps({"id": msg.get("id"), **res}))
                     except asyncio.TimeoutError:
-                        ocr.kill()
+                        eng.kill()
                         print("[OCR 실패] 15초 안에 답이 없어 다시 띄웁니다")
                         await ws.send(json.dumps({"id": msg.get("id"), "error": "OCR 응답 없음"}))
                     except Exception as e:

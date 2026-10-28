@@ -275,20 +275,20 @@ h3 {
   position: sticky;
   top: 20px;
 }
-.vs-menu-btn {
+.vs-menu-btn, .fm-menu-btn {
   text-align: left;
   padding: 12px 14px;
   background: var(--slot);
   color: var(--muted);
   border: 2px solid var(--line);
 }
-.vs-menu-btn:hover { color: var(--text); background: var(--panel); }
-.vs-menu-btn.is-active {
+.fm-menu-btn:hover, .vs-menu-btn:hover { color: var(--text); background: var(--panel); }
+.vs-menu-btn.is-active, .fm-menu-btn.is-active {
   background: var(--panel);
   color: var(--accent);
 }
 
-.vs-main {
+.vs-main, .fm-main {
   flex: 1;
   min-width: 0;
   background: var(--panel);
@@ -608,7 +608,7 @@ canvas#fmView { width: 100%; height: auto; background: #000; cursor: crosshair; 
 }
 
 /* 패널·캔버스에 그림자를 같이 준다 */
-.vs-screen, .vs-main, .panel { box-shadow: var(--shadow); border-color: #000 !important; }
+.vs-screen, .vs-main, .fm-main, .panel { box-shadow: var(--shadow); border-color: #000 !important; }
 canvas#fmView { width: 100%; height: auto; display: block; background: var(--slot); border: 2px solid #000; cursor: crosshair; }
 .vs-side input#fmWindow { width: 100%; margin-top: 4px; }
 
@@ -623,3 +623,82 @@ canvas#fmView { width: 100%; height: auto; display: block; background: var(--slo
   .card-art { flex-basis: 72px; font-size: 32px; }
   .card-body b { font-size: 24px; }
 }
+
+/* ── 농부: 판단 로그 · 알아낸 정보 · 매뉴얼 ── */
+.fm-sec { display: none; }
+.fm-sec.is-active { display: block; }
+.fm-split { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 20px; }
+@media (max-width: 1100px) { .fm-split { grid-template-columns: 1fr; } }
+#fmLog .log-row { white-space: normal; }
+.log-row .why { display: block; padding-left: 16px; color: var(--muted); }
+.log-row .why::before { content: "└ "; color: var(--line-hi); }
+.log-warn { background: rgba(240,180,41,0.10); }
+.dim { color: var(--muted); }
+.fm-info, .fm-ocr {
+  background: var(--slot);
+  border: 2px solid var(--line);
+  padding: 8px 10px;
+  margin-bottom: 18px;
+}
+.fm-ocr { max-height: 200px; overflow-y: auto; color: var(--muted); font-size: 14px; white-space: pre-wrap; }
+.fm-info table { width: 100%; border-collapse: collapse; }
+.fm-info td { padding: 3px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.fm-info td:first-child { color: var(--muted); width: 38%; }
+.fm-info .src { display: block; font-size: 14px; color: var(--muted); }
+.fm-manual { max-width: 860px; line-height: 1.6; }
+.fm-manual h2 { font-size: 24px; font-weight: normal; color: var(--accent); margin: 28px 0 8px; }
+.fm-manual h2:first-child { margin-top: 0; }
+.fm-manual ol, .fm-manual ul { padding-left: 22px; }
+.fm-manual table { width: 100%; border-collapse: collapse; margin: 8px 0; background: var(--slot); }
+.fm-manual th, .fm-manual td { text-align: left; padding: 6px 8px; border: 1px solid var(--line); vertical-align: top; }
+.fm-manual th { color: var(--muted); font-weight: normal; }
+.fm-manual code { background: #000; padding: 0 4px; }
+.fm-manual .note { color: var(--muted); border-left: 4px solid var(--accent); padding-left: 10px; }
+#panel-farm .vs-screen { margin-bottom: 16px; }
+
+/* ── 농부: 매뉴얼(배운 문법 사전) ── */
+.dict-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.dict-head h3 { color: var(--text); font-size: 18px; margin-bottom: 4px; }
+.dict-head p { margin: 0 0 12px; }
+#fmDictQ { width: 240px; }
+.dict-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+.dict-entry { background: var(--slot); border: 2px solid var(--line); padding: 10px 12px; }
+.dict-entry header { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.dict-name { color: var(--accent); font-size: 18px; word-break: break-all; }
+.dict-kind { font-size: 14px; padding: 0 6px; border: 2px solid var(--line-hi); color: var(--muted); }
+.dict-seen { margin-left: auto; font-size: 14px; }
+.dict-entry p { margin: 8px 0; }
+.dict-ex { margin: 0 0 8px; padding: 6px 8px; background: #000; color: var(--text); font-family: inherit; font-size: 14px; white-space: pre-wrap; }
+.dict-entry details summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+.dict-entry details ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
+.log-win { background: rgba(143,209,106,0.10); }
+
+.fm-agent { margin-top: 16px; padding-top: 12px; border-top: 2px solid var(--line); }
+.fm-agent h3 { color: var(--text); }
+.fm-agent .vs-goal { width: 100%; margin-top: 4px; }
+
+/* 자율 플레이 중 띠 — 화면 맨 위에 붙어 따라다닌다 */
+.agent-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border: 2px solid #000;
+  box-shadow: var(--shadow);
+}
+.agent-bar b { font-weight: normal; font-size: 18px; }
+.agent-dot { width: 12px; height: 12px; background: #c8463c; border: 2px solid #000; animation: agent-blink 1s steps(2) infinite; }
+@keyframes agent-blink { 50% { opacity: 0.2; } }
+.agent-phase { padding: 2px 10px; background: #000; color: var(--accent); }
+.agent-goal { flex: 1; min-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.8; }
+.agent-bar button { background: #000; color: var(--text); box-shadow: 2px 2px 0 rgba(0,0,0,0.5); }
+.agent-bar button:hover { background: #2a2720; }
+.agent-bar kbd { font-size: 12px; }
+@media (prefers-reduced-motion: reduce) { .agent-dot { animation: none; } }
