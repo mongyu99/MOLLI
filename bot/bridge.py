@@ -34,6 +34,32 @@ GAME_DIR = Path(__file__).resolve().parent.parent / "game"
 # 농부 게임에서 몰리가 화면을 읽으며 쌓는 문법 사전. 페이지가 통째로 보내면 그대로 저장한다.
 FARM_DICT = GAME_DIR / "knowledge" / "farm_dict.json"
 FARM_DICT_MAX = 4 * 2**20
+# 게임 판단 로그. 페이지에서만 보이던 것을 파일로도 남겨서 나중에 다시 읽는다.
+GAME_LOG_DIR = Path(__file__).resolve().parent / "logs"
+GAME_LOG_GAMES = ("farm", "vampire")
+
+
+def append_game_log(game, lines):
+    # 이름은 정해진 것만 받는다 — 파일 경로에 들어가기 때문
+    if game not in GAME_LOG_GAMES or not isinstance(lines, list):
+        return
+    by_day = {}
+    for ln in lines[:500]:
+        if not isinstance(ln, dict):
+            continue
+        try:
+            at = time.localtime(float(ln.get("t")) / 1000)
+        except (TypeError, ValueError):
+            at = time.localtime()
+        row = {"at": time.strftime("%Y-%m-%d %H:%M:%S", at),
+               "kind": str(ln.get("kind") or "")[:20], "text": str(ln.get("text") or "")[:4000]}
+        by_day.setdefault(time.strftime("%Y-%m-%d", at), []).append(json.dumps(row, ensure_ascii=False))
+    if not by_day:
+        return
+    GAME_LOG_DIR.mkdir(exist_ok=True)
+    for day, rows in by_day.items():
+        with open(GAME_LOG_DIR / f"{game}-{day}.jsonl", "a", encoding="utf-8") as f:
+            f.write("\n".join(rows) + "\n")
 
 # 허용할 키만 화이트리스트로 둔다. 브릿지가 임의의 문자를 칠 수 있으면 곤란하다.
 # ESC는 뺐다. 대부분의 게임에서 일시정지/종료라, 봇이 실수로 누르면 게임이 꺼진다.
@@ -272,6 +298,22 @@ class MouseClicker:
             time.sleep(0.08)
             _user32.mouse_event(up, 0, 0, 0, 0)
         return {"at": [x, y], "basis": basis, "rect": list(rect)}
+
+    def park(self, hwnd, fx: float, fy: float, cw: int = 0, ch: int = 0) -> dict:
+        """누르지 않고 커서만 옮긴다. 클릭한 자리에 커서가 남아 있으면 게임이 설명 풍선·강조를 띄워서
+        다음 화면 읽기가 틀어진다 (10-29). 화면을 보기 전에 빈 곳으로 비켜 둔다."""
+        if not (0 <= fx <= 1 and 0 <= fy <= 1):
+            return {"error": "좌표가 0~1 밖입니다"}
+        basis, rect = capture_rect(hwnd, cw, ch)
+        if not rect:
+            return {"error": "게임 창 크기를 알 수 없습니다"}
+        x = rect[0] + round(fx * (rect[2] - 1))
+        y = rect[1] + round(fy * (rect[3] - 1))
+        if not in_client(hwnd, x, y):
+            return {"error": "게임 내용 영역 밖이라 옮기지 않았습니다", "outside": True}
+        if self.live:
+            _user32.SetCursorPos(x, y)
+        return {"at": [x, y], "moved": self.live}
 
     def drag(self, hwnd, f1, f2, cw: int = 0, ch: int = 0) -> dict:
         """왼쪽 버튼을 누른 채 f1 → f2 로 끈다 (창 옮기기). 두 점 모두 게임 내용 영역 안이어야 한다."""
@@ -1067,6 +1109,14 @@ async def main_async(args):
                         await ws.send(json.dumps({"id": msg.get("id"), "error": str(e)}))
                     continue
 
+                # 판단 로그. 페이지가 모아서 보내면 날짜별 파일에 덧붙인다. 답은 하지 않는다.
+                if kind == "log":
+                    try:
+                        append_game_log(msg.get("game"), msg.get("lines"))
+                    except Exception as e:
+                        print(f"[로그 저장 실패] {e}")
+                    continue
+
                 # 폰으로 보기. 키와 무관하다.
                 if kind in ("remote_push", "remote_info", "remote_code", "remote_revoke", "remote_unhold"):
                     rid = msg.get("id")
@@ -1107,7 +1157,7 @@ async def main_async(args):
                     continue
 
                 # ESC 로 멈췄으면 아무것도 누르지 않는다
-                if kind in ("move", "tap", "click", "scroll", "drag", "type", "key", "paste") and state["halted"]:
+                if kind in ("move", "tap", "click", "scroll", "drag", "type", "key", "paste", "park") and state["halted"]:
                     if presser.held:
                         presser.release_all()
                     await ws.send(json.dumps({"id": msg.get("id"), "ok": True, "live": args.live, "halted": True}))
@@ -1126,7 +1176,7 @@ async def main_async(args):
                     continue
 
                 # 폰에서 정지했으면 키를 보내지 않는다 (PC 탭이 아직 모르고 계속 보내도)
-                if kind in ("move", "tap", "click", "scroll", "drag", "type", "key", "paste") and remote is not None and remote.hold:
+                if kind in ("move", "tap", "click", "scroll", "drag", "type", "key", "paste", "park") and remote is not None and remote.hold:
                     if presser.held:
                         presser.release_all()
                     await ws.send(json.dumps({"ok": True, "live": args.live, "held": True}))
@@ -1157,6 +1207,18 @@ async def main_async(args):
                         print(f"{tag} {msg.get('button', 'left')} @ {res['at'][0]},{res['at'][1]} ({res['basis']} 기준)")
                     else:
                         print(f"[클릭 실패] {res.get('error')}")
+                    await ws.send(json.dumps({"id": msg.get("id"), "ok": bool(res.get("at")), "live": args.live, **res}))
+                    continue
+                elif kind == "park":
+                    hwnd = find_window(WINDOW)
+                    if not hwnd:
+                        await ws.send(json.dumps({"id": msg.get("id"), "ok": False, "live": args.live, "no_window": True}))
+                        continue
+                    try:
+                        fx, fy = float(msg.get("x")), float(msg.get("y"))
+                    except (TypeError, ValueError):
+                        fx = fy = -1
+                    res = clicker.park(hwnd, fx, fy, int(msg.get("cw") or 0), int(msg.get("ch") or 0))
                     await ws.send(json.dumps({"id": msg.get("id"), "ok": bool(res.get("at")), "live": args.live, **res}))
                     continue
                 elif kind == "drag":

@@ -7,3 +7,6 @@ bot/.venv/
 bot/remote_devices.json
 __pycache__/
 *.pyc
+
+# 게임 판단 로그 (브릿지가 날짜별로 남긴다)
+bot/logs/

@@ -102,19 +102,21 @@ const TERM_KINDS = {
 // 사용자가 직접 알려준 화면 조작. 매 판단마다 LLM 에 넘기고, 매뉴얼(사전)에도 '사용자가 알려줌'으로 넣어 둔다.
 // 아이콘이라 OCR 로는 안 읽히므로 대략의 위치(where)를 같이 적는다.
 const FARM_UI_HINTS = [
+  // 오른쪽 위 아이콘은 3개다. 오른쪽부터 ⇈, ?, + (10-29 사용자: "오른쪽에서 가운데 있는 게 ?").
+  // 아이콘이 작아 LLM 이 ? 를 자꾸 못 보므로, 생김새보다 '몇 번째' 로 알려준다.
   {
     name: "+ 버튼",
-    where: "화면 오른쪽 위",
+    where: "화면 오른쪽 위 아이콘 3개 중 맨 왼쪽",
     meaning: "누르면 새 코드 창이 추가된다",
     button: "add",
-    prompt: '"add": the "+" icon at the top-right — adds a new code window.',
+    prompt: '"add": the "+" icon — the LEFTMOST of the three icons at the top-right — adds a new code window.',
   },
   {
-    name: "i 버튼",
-    where: "화면 오른쪽 위",
+    name: "? 버튼",
+    where: "화면 오른쪽 위 아이콘 3개 중 가운데",
     meaning: "누르면 정보 창(게임 설명서)이 뜬다. 함수·문법을 배우기 좋다",
     button: "info",
-    prompt: '"info": the "i" icon at the top-right — opens the info window (in-game documentation). If the info window is ALREADY open, do not press it again; click a topic link inside it instead.',
+    prompt: '"info": the "?" icon — the MIDDLE of the three icons at the top-right (you may not be able to see the "?" clearly; it is always the middle one) — opens the info window (in-game documentation). If the info window is ALREADY open, do not press it again; click a topic link inside it instead.',
   },
 ];
 // 절대 누르지 않는 글자. 10-28 에 봇이 메인 메뉴로 나간 뒤 Quit 을 눌러 게임을 꺼버렸다.
@@ -142,7 +144,11 @@ const DIRECTIONS = ["North", "East", "South", "West"];
   const ctx = el.view.getContext("2d");
   const video = document.createElement("video");
   video.muted = true;
-  const logger = createLogger("fmLog", { max: 120 });
+  // 판단 로그는 브릿지가 bot/logs/farm-날짜.jsonl 에도 남긴다
+  const logger = createLogger("fmLog", {
+    max: 120,
+    sink: (lines) => connected() && (ws.send(JSON.stringify({ type: "log", game: "farm", lines })), true),
+  });
   const dictEl = {};
   const byId = Object.fromEntries(FARM_SCREENS.map((s) => [s.id, s]));
   const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -676,6 +682,14 @@ ${agentN ? agentBlock(agentN) : ""}`;
   function seedUiHints() {
     const at = new Date().toISOString();
     let changed = false;
+    // 이름을 바꾼 옛 안내(예: 'i 버튼' → '? 버튼')는 사전에서 지운다
+    const current = new Set(FARM_UI_HINTS.map((h) => keyOf(h.name)));
+    for (const [k, e] of Object.entries(dict.entries)) {
+      if (e.kind === "ui" && !current.has(k) && e.sources?.some((s) => s.how === "사용자가 알려줌")) {
+        delete dict.entries[k];
+        changed = true;
+      }
+    }
     for (const h of FARM_UI_HINTS) {
       const k = keyOf(h.name);
       const e = dict.entries[k];
@@ -758,6 +772,20 @@ Answer JSON only, describing only what this page says:
   const stamp = () => new Date().toLocaleTimeString("ko-KR", { hour12: false });
   const why = (html) => `<span class="why">${html}</span>`;
 
+  // 화면을 보기 전에 마우스를 빈 곳으로 비킨다. 10-29 사용자: "마우스가 올라가 있으면 이상하게 봄" —
+  // 클릭한 자리에 커서가 남아 설명 풍선(예: "Unlocks. Functions must be unlocked")·강조가 떠서 그걸 화면 글자로 읽었다.
+  // 자율 플레이 중에만 한다 (그냥 보기만 할 때 사용자 마우스를 뺏지 않게).
+  const PARK_SPOTS = [[0.01, 0.985], [0.985, 0.985], [0.01, 0.5], [0.5, 0.985]];
+  async function park() {
+    if (!agentOn || !connected() || !video.videoWidth) return;
+    const lay = analyzeLayout();
+    const inside = (r, x, y) => r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+    const spot = PARK_SPOTS.find(([x, y]) => !lay.windows.some((r) => inside(r, x, y)) && !inside(lay.field, x, y)) || PARK_SPOTS[0];
+    const r = await ask({ type: "park", x: spot[0], y: spot[1], cw: video.videoWidth, ch: video.videoHeight });
+    // 풍선이 사라질 틈
+    if (r.moved) await sleep(250);
+  }
+
   // agentN 이 있으면 자율 플레이의 한 걸음: 같은 LLM 호출에서 다음 행동까지 받는다
   async function check(agentN) {
     if (checking) return null;
@@ -771,6 +799,7 @@ Answer JSON only, describing only what this page says:
     if (agentN) setPhase("👁 화면 글자 읽는 중");
     try {
       // 1·2. OCR
+      if (agentN) await park();
       // 2026-10-28 실제 게임 화면으로 비교: 영어 화면은 en-US 엔진 + 2배 확대가 제일 정확했다
       // (ko 엔진은 pet_the_piggy 를 pet—the—piggy, Hay 를 터하y 로 읽었다). 좌표는 ocr.w/h 기준이라 확대해도 맞는다.
       const ocr = await ask({ type: "ocr", image: grab(0, 2), lang: el.lang.value }, 20000);
@@ -798,7 +827,9 @@ Answer JSON only, describing only what this page says:
       if (model) {
         setStatus("LLM 이 판단하는 중…", "");
         if (agentN) setPhase("💭 생각하는 중");
-        docsOpenNow = rule.id === "docs";
+        // 10-29: 'pet_the_piggy' 설명 쪽에 "upgrade speed" 가 있어 규칙이 '해금' 으로 보고 정보 창이 안 열린 줄 알았다.
+        // 그래서 끝까지 읽기(readWholePage)를 안 하고 LLM 이 없는 줄 번호만 5번 눌렀다. 화면에 정보 창이 있으면 그걸 믿는다.
+        docsOpenNow = rule.id === "docs" || windowNames.some((w2) => w2.kind === "info");
         // 정보 창이면 단어는 아래 전용 질문으로 읽으므로 여기선 판단·행동만 짧게 받는다
         const terms = !docsOpenNow && wantTerms(lines);
         const res = await ask(
@@ -811,6 +842,7 @@ Answer JSON only, describing only what this page says:
           rows.push(why(`<span class="bad">LLM 실패</span> — ${esc(res.error)} → 규칙 추정을 씁니다`));
         } else {
           llm = parseJson(res.text);
+          if (llm?.screen === "docs") docsOpenNow = true;
           rows.push(llm
             ? why(`LLM(${esc(model)}, ${res.took?.toFixed(1) ?? "?"}초${res.stats ? ` = 올리기 ${res.stats.load}초 · 읽기 ${res.stats.read}초 · 답 쓰기 ${res.stats.write}초, ${res.stats.out_tokens}토큰` : ""}) <b>${byId[llm.screen].name}</b> — ${esc(llm.reason || "근거 없음")}`)
             : why(`<span class="bad">LLM 답을 못 읽었습니다</span> — <span class="dim">${esc(String(res.text).slice(0, 120))}</span> → 규칙 추정을 씁니다`));
@@ -929,7 +961,7 @@ Answer JSON only, describing only what this page says:
   };
 
   // 오른쪽 위 아이콘 버튼 찾기. 버튼은 모두 올리브색 네모(rgb 96,115,13)라서 색으로 찾는다.
-  // 화면 오른쪽 40%·위 20% 안에서 그 색이 있는 세로줄을 모아 덩어리로 나누고, 오른쪽부터 ⇈, i, + 로 본다.
+  // 화면 오른쪽 40%·위 20% 안에서 그 색이 있는 세로줄을 모아 덩어리로 나누고, 오른쪽부터 ⇈, ?, + 로 본다.
   // (2026-10-28 1922×1112 창 캡처에서 + (1759,68), i (1820,68), ⇈ (1882,68) 으로 확인)
   const BUTTON_ORDER = ["up", "info", "add"]; // 오른쪽에서 왼쪽 순서
   function findTopButtons() {
@@ -1255,6 +1287,11 @@ Answer JSON only, describing only what this page says:
       const after = analyzeLayout().windows.some(
         (w2) => Math.abs(w2.x - to.x) < 0.03 && Math.abs(w2.y - to.y) < 0.03 && Math.abs(w2.w - win.w) < 0.03
       );
+      // 이름은 다음 OCR 까지 옛 자리에 붙어 있다 — 창을 따라가게 옮겨 둔다
+      if (after) {
+        const nm = windowNames.find((n) => Math.abs(n.x - win.x) < 0.02 && Math.abs(n.y - win.y) < 0.02);
+        if (nm) Object.assign(nm, { x: to.x, y: to.y });
+      }
       notes.push(`${desc} 이 밭을 가려서 (${pct(to.x)}%,${pct(to.y)}%) 로 끌었음 — ${after ? "옮겨진 것 확인" : "옮겨지지 않음 (게임이 거부했거나 잡은 곳이 제목줄이 아님)"}${to.coversField ? " · 밭을 조금 덜 가리는 자리밖에 없었음" : ""}`);
     }
     return notes;
@@ -1503,6 +1540,8 @@ Dragging a window ONTO another window docks it to that window.`;
     // 왼쪽 줄 번호 칸(폭의 약 5%)은 뺀다
     const sx = (win.x + win.w * 0.05) * W, sy = (win.y + win.barH) * H, sw = win.w * 0.95 * W, sh = (win.h - win.barH) * H;
     if (sw < 10 || sh < 10) return { lines: [], text: "" };
+    // 편집 칸을 누른 자리에 커서가 남으면 함수 이름 위 풍선이 코드를 가린다
+    await park();
     const c = document.createElement("canvas");
     c.width = Math.round(sw * 3);
     c.height = Math.round(sh * 3);
@@ -1526,22 +1565,41 @@ Dragging a window ONTO another window docks it to that window.`;
       .map((l) => `${Math.floor((l.length - l.trimStart().length) / 4)}|${l.trim().replace(/\s+/g, "").replace(/[‘’`]/g, "'").replace(/[“”]/g, '"').replace(/[|l]/g, "1").replace(/O/g, "0")}`)
       .join("\n");
 
+  // 고치는 데 필요한 글자 수 (넣기·빼기·바꾸기)
+  function editDistance(a, b) {
+    let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) {
+      const cur = [i];
+      for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = cur;
+    }
+    return prev[b.length];
+  }
+
   function sameCode(want, got) {
     const A = normCode(want), B = normCode(got);
     if (A === B) return true;
-    // 글자 몇 개 틀린 건 OCR 탓일 수 있다 — 줄 수가 같고 95% 넘게 같으면 같은 걸로 본다
-    const al = A.split("\n"), bl = B.split("\n");
-    if (al.length !== bl.length) return false;
-    let same = 0, all = 0;
-    al.forEach((x, i) => {
-      const y = bl[i];
-      all += Math.max(x.length, y.length);
-      for (let j = 0; j < Math.min(x.length, y.length); j++) if (x[j] === y[j]) same++;
-    });
-    return all > 0 && same / all > 0.95;
+    if (!B) return false;
+    // 글자 몇 개 틀린 건 OCR 탓일 수 있다 — 10% 안쪽(짧은 코드는 2글자)까지 같은 걸로 본다.
+    // 10-29: 예전엔 같은 자리 글자끼리만 비교해서, OCR 이 "def" 를 "defr" 로 한 글자 더 읽으면 뒤가 다 밀려
+    // 멀쩡히 붙여넣은 2줄짜리 코드를 계속 "다르다" 고 했다. 줄 수가 달라도 들여쓰기 표시(0|, 1|)는 글자로 남아 같이 비교된다.
+    return editDistance(A, B) <= Math.max(2, Math.floor(Math.max(A.length, B.length) * 0.1));
   }
 
+  // 실행 결과(드론이 움직이는지, 오류가 뜨는지)는 밭을 봐야 안다. 그래서 밭이 가려져 있으면 이때 치우고 누른다.
   async function runWindow(win) {
+    setPhase("🪟 밭을 가린 창 치우는 중");
+    const moved = await clearField();
+    if (moved.length) {
+      await sleep(300);
+      // 옮긴 게 이 창일 수 있다 — 이름으로 다시 찾는다 (clearField 가 이름을 새 자리로 옮겨 둔다)
+      win = windowByName(analyzeLayout(), win.name) || win;
+    }
+    const rr = await pressRun(win);
+    return moved.length ? { ...rr, tries: [...moved, ...(rr.tries || [])] } : rr;
+  }
+
+  async function pressRun(win) {
     const btn = barButtons(win)[0];
     if (!btn || btn[0] > win.x + win.w * 0.2) return { text: "▶ 버튼을 못 찾음" };
     const before = tinyFrame();
@@ -1588,7 +1646,8 @@ Dragging a window ONTO another window docks it to that window.`;
       steps.push(`${attempt}번째: 편집기 글자가 다름 → ${attempt < 2 ? "다시 붙여넣기" : "멈춤"}`);
       if (attempt === 2) {
         return {
-          text: `'${win.name}' 에 쓴 코드가 편집기에 다르게 보임 — 실행하지 않음. 편집기에 보이는 것:\n${editor.text || "(빈칸)"}`,
+          // 줄바꿈은 로그에서 뭉개지므로 ⏎ 로 보인다
+          text: `'${win.name}' 에 쓴 코드가 편집기에 다르게 보임 — 실행하지 않음. 편집기에 보이는 것: ${editor.text ? editor.text.replace(/\n/g, " ⏎ ") : "(빈칸)"}`,
           tries: steps,
         };
       }
@@ -1596,7 +1655,7 @@ Dragging a window ONTO another window docks it to that window.`;
     if (!run) return { text: `'${win.name}' 에 코드 씀 (실행은 안 함)`, tries: steps };
     setPhase("▶ 실행하는 중");
     const rr = await runWindow(win);
-    return { ...rr, text: `'${win.name}' 에 코드 쓰고 확인 → ${rr.text}`, tries: steps };
+    return { ...rr, text: `'${win.name}' 에 코드 쓰고 확인 → ${rr.text}`, tries: [...steps, ...(rr.tries || [])] };
   }
 
   // 행동 하나를 브릿지로 보낸다. 결과를 한국어 한 줄로 돌려준다.
@@ -1608,7 +1667,7 @@ Dragging a window ONTO another window docks it to that window.`;
     switch (a?.type) {
       case "click": {
         const l = view.lines[a.target];
-        if (!l) return { text: `${a.target}번 줄이 없음` };
+        if (!l) return { text: `${a.target}번 줄이 없음 — 화면이 바뀌어 지금은 0~${view.lines.length - 1}번만 있음. 예전 번호를 쓰지 말고 지금 목록에서 고르세요` };
         if (FORBIDDEN_TEXT.test(l.text)) return { text: `"${l.text}" 는 게임을 나가는 글자라 누르지 않음 (금지)` };
         if (docsOpenNow && isDocHeading(l.text)) return { text: `"${l.text}" 는 섹션 제목이라 누르지 않음 — 그 아래 이름을 고르세요` };
         if (l.inPicture) return { text: `"${l.text}" 는 설명서 속 그림 안의 글자라 누르지 않음` };
@@ -1756,6 +1815,7 @@ Dragging a window ONTO another window docks it to that window.`;
   const docsWindow = (lay) => lay.windows.slice().sort((a, b) => b.w * b.h - a.w * a.h)[0];
 
   async function ocrNow() {
+    await park();
     const ocr = await ask({ type: "ocr", image: grab(0, 2), lang: el.lang.value }, 20000);
     return classifyLines(ocr.lines || [], ocr.w || video.videoWidth * 2, ocr.h || video.videoHeight * 2);
   }
@@ -1855,14 +1915,7 @@ Dragging a window ONTO another window docks it to that window.`;
       const n = ++agentStep;
       const stepT0 = performance.now();
       el.agentState.textContent = `${n}/${max}걸음 — 보는 중`;
-      // 밭이 먼저다: 창이 밭을 가리면 LLM 에게 묻기 전에 코드가 치운다
-      setPhase("🪟 밭을 가린 창 치우는 중");
-      const moved = await clearField();
-      if (!agentOn) return;
-      if (moved.length) {
-        logger.push(`<span class="tag">자율 ${n}</span> 밭 먼저` + moved.map((m) => why(esc(m))).join(""));
-        await sleep(500);
-      }
+      // 10-29: 매 걸음 '밭 먼저' 창을 치우던 것은 뺐다 (사용자: 확인해야 할 때 안 보이면 치워라). 이제 ▶ 실행 직전에만 치운다 — runWindow.
       if (n === 1) el.agentStepEl.textContent = `1/${max}걸음`;
       const view = await check(n);
       if (!agentOn) return;
@@ -1888,7 +1941,12 @@ Dragging a window ONTO another window docks it to that window.`;
       fails = 0;
       const what = describe(llm.action, view.lines);
       el.agentState.textContent = `${n}/${max}걸음 — ${what}`;
-      const res = await act(llm.action, view);
+      // 프롬프트에 '같은 실패 3번 금지' 라고 써도 gemma 는 반복한다 (10-29: 없는 25번 줄을 5번). 코드가 막는다.
+      const last2 = history.slice(-2);
+      const repeat = last2.length === 2 && last2.every((h) => h.action === what && h.result === last2[0].result);
+      const res = repeat
+        ? { text: `같은 행동을 3번째 하려 해서 막음 — 앞의 2번 모두 "${last2[0].result}". 완전히 다른 행동을 고르세요` }
+        : await act(llm.action, view);
       history.push({ step: n, screen: view.screen, plan: String(llm.plan || "").slice(0, 160), action: what, result: res.text });
       if (history.length > 8) history.shift();
       logger.push(

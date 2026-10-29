@@ -129,7 +129,11 @@
     "vsRegionCancel", "vsRegionState", "vsRegionList", "vsUiBlue", "vsUiThr", "vsUiThrVal", "vsUiColor", "vsUiLearn", "vsUiForget", "vsOcrOn", "vsOcrNow", "vsOcrResult", "vsOcrWords", "vsRemoteCode", "vsRemoteRevoke", "vsRemoteState",
   ].forEach((id) => (el[id] = document.getElementById(id)));
 
-  const logger = createLogger("vsLog", { max: 60 });
+  // 판단 로그는 브릿지가 bot/logs/vampire-날짜.jsonl 에도 남긴다
+  const logger = createLogger("vsLog", {
+    max: 60,
+    sink: (lines) => !!ws && ws.readyState === WebSocket.OPEN && (ws.send(JSON.stringify({ type: "log", game: "vampire", lines })), true),
+  });
 
   // 왼쪽 메뉴: 고른 것만 보여준다
   // "모니터링" 은 시야·로그·레벨업 읽은 것을 한 화면에 같이 보여준다.

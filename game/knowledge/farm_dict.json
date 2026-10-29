@@ -1,6 +1,6 @@
 {
  "game": "The Farmer Was Replaced",
- "updated": "2026-10-28T12:49:31.261Z",
+ "updated": "2026-10-29T11:11:51.034Z",
  "entries": {
   "+ 버튼": {
    "seen": 3,
@@ -18,45 +18,16 @@
    "kind": "ui",
    "kindGuess": false,
    "signature": "",
-   "meaning": "화면 오른쪽 위에 있음 — 누르면 새 코드 창이 추가된다",
+   "meaning": "화면 오른쪽 위 아이콘 3개 중 맨 왼쪽에 있음 — 누르면 새 코드 창이 추가된다",
    "example": "",
-   "last": "2026-10-28T11:27:27.042Z",
+   "last": "2026-10-29T09:39:57.200Z",
    "sources": [
     {
-     "at": "2026-10-28T11:27:27.042Z",
+     "at": "2026-10-29T09:39:57.200Z",
      "check": 0,
      "screen": "play",
      "how": "사용자가 알려줌",
-     "from": "화면 오른쪽 위의 + 버튼"
-    }
-   ]
-  },
-  "i 버튼": {
-   "seen": 3,
-   "first": "2026-10-28T11:22:50.349Z",
-   "changes": [
-    {
-     "at": "2026-10-28T11:23:15.815Z",
-     "check": 1,
-     "field": "meaning",
-     "old": "화면 오른쪽 위에 있음 — 누르면 정보 창(게임 설명서)이 뜬다. 함수·문법을 배우기 좋다",
-     "now": "정보 창(게임 설명서)을 뜬다"
-    }
-   ],
-   "name": "i 버튼",
-   "kind": "ui",
-   "kindGuess": false,
-   "signature": "",
-   "meaning": "화면 오른쪽 위에 있음 — 누르면 정보 창(게임 설명서)이 뜬다. 함수·문법을 배우기 좋다",
-   "example": "",
-   "last": "2026-10-28T11:27:27.042Z",
-   "sources": [
-    {
-     "at": "2026-10-28T11:27:27.042Z",
-     "check": 0,
-     "screen": "play",
-     "how": "사용자가 알려줌",
-     "from": "화면 오른쪽 위의 i 버튼"
+     "from": "화면 오른쪽 위 아이콘 3개 중 맨 왼쪽의 + 버튼"
     }
    ]
   },
@@ -88,9 +59,9 @@
    "signature": "",
    "meaning": "",
    "example": "",
-   "seen": 10,
+   "seen": 15,
    "first": "2026-10-28T11:36:23.776Z",
-   "last": "2026-10-28T12:47:41.985Z",
+   "last": "2026-10-29T09:40:38.733Z",
    "sources": [
     {
      "at": "2026-10-28T11:36:23.776Z",
@@ -109,9 +80,9 @@
    "signature": "",
    "meaning": "",
    "example": "",
-   "seen": 10,
+   "seen": 15,
    "first": "2026-10-28T11:36:23.776Z",
-   "last": "2026-10-28T12:47:41.985Z",
+   "last": "2026-10-29T09:40:38.733Z",
    "sources": [
     {
      "at": "2026-10-28T11:36:23.776Z",
@@ -130,9 +101,9 @@
    "signature": "",
    "meaning": "",
    "example": "",
-   "seen": 10,
+   "seen": 15,
    "first": "2026-10-28T11:36:23.776Z",
-   "last": "2026-10-28T12:47:41.985Z",
+   "last": "2026-10-29T09:40:38.733Z",
    "sources": [
     {
      "at": "2026-10-28T11:36:23.776Z",
@@ -151,9 +122,9 @@
    "signature": "harvest()",
    "meaning": "함수는 실행 가능한 명령으로 생각할 수 있습니다. 함수는 괄호()를 사용하여 실행합니다.",
    "example": "harvest()\nharvest()\ndo_a_flip()\nharvest()",
-   "seen": 40,
+   "seen": 52,
    "first": "2026-10-28T11:36:23.776Z",
-   "last": "2026-10-28T12:49:31.261Z",
+   "last": "2026-10-29T11:11:51.034Z",
    "sources": [
     {
      "at": "2026-10-28T12:40:24.205Z",
@@ -190,13 +161,34 @@
    "name": "pet_the_piggy",
    "kind": "function",
    "kindGuess": false,
-   "signature": "",
+   "signature": "pet_the_piggy(…)",
    "meaning": "",
    "example": "",
-   "seen": 10,
+   "seen": 36,
    "first": "2026-10-28T11:36:23.776Z",
-   "last": "2026-10-28T12:47:41.985Z",
+   "last": "2026-10-29T09:42:21.789Z",
    "sources": [
+    {
+     "at": "2026-10-29T09:33:43.672Z",
+     "check": 2,
+     "screen": "play",
+     "how": "OCR 규칙",
+     "from": "pet_the_piggy( )"
+    },
+    {
+     "at": "2026-10-29T09:30:38.509Z",
+     "check": 17,
+     "screen": "play",
+     "how": "OCR 규칙",
+     "from": "pet_the_piggy()"
+    },
+    {
+     "at": "2026-10-29T09:30:20.007Z",
+     "check": 16,
+     "screen": "play",
+     "how": "OCR 규칙",
+     "from": "pet_the_piggy("
+    },
     {
      "at": "2026-10-28T11:36:23.776Z",
      "check": 1,
@@ -214,9 +206,9 @@
    "signature": "",
    "meaning": "",
    "example": "",
-   "seen": 10,
+   "seen": 15,
    "first": "2026-10-28T11:36:23.776Z",
-   "last": "2026-10-28T12:47:41.985Z",
+   "last": "2026-10-29T09:40:38.733Z",
    "sources": [
     {
      "at": "2026-10-28T11:36:23.776Z",
@@ -235,9 +227,9 @@
    "signature": "",
    "meaning": "",
    "example": "",
-   "seen": 10,
+   "seen": 15,
    "first": "2026-10-28T11:36:23.776Z",
-   "last": "2026-10-28T12:47:41.985Z",
+   "last": "2026-10-29T09:40:38.733Z",
    "sources": [
     {
      "at": "2026-10-28T11:36:23.776Z",
@@ -516,13 +508,149 @@
     }
    ],
    "changes": []
+  },
+  "def": {
+   "name": "def",
+   "kind": "keyword",
+   "kindGuess": true,
+   "signature": "",
+   "meaning": "",
+   "example": "",
+   "seen": 28,
+   "first": "2026-10-29T09:13:42.362Z",
+   "last": "2026-10-29T09:35:07.658Z",
+   "sources": [
+    {
+     "at": "2026-10-29T09:13:42.362Z",
+     "check": 6,
+     "screen": "docs",
+     "how": "OCR 규칙",
+     "from": "def f():"
+    }
+   ],
+   "changes": []
+  },
+  "change_hat": {
+   "name": "change_hat",
+   "kind": "function",
+   "kindGuess": true,
+   "signature": "change_hat(…)",
+   "meaning": "",
+   "example": "",
+   "seen": 1,
+   "first": "2026-10-29T09:27:09.647Z",
+   "last": "2026-10-29T09:27:09.647Z",
+   "sources": [
+    {
+     "at": "2026-10-29T09:27:09.647Z",
+     "check": 4,
+     "screen": "play",
+     "how": "OCR 규칙",
+     "from": "change_hat(Hats .Traffic_cone)"
+    }
+   ],
+   "changes": []
+  },
+  "while": {
+   "name": "while",
+   "kind": "keyword",
+   "kindGuess": true,
+   "signature": "",
+   "meaning": "",
+   "example": "",
+   "seen": 16,
+   "first": "2026-10-29T09:34:31.392Z",
+   "last": "2026-10-29T09:42:21.789Z",
+   "sources": [
+    {
+     "at": "2026-10-29T09:34:31.392Z",
+     "check": 4,
+     "screen": "docs",
+     "how": "OCR 규칙",
+     "from": "while True:"
+    }
+   ],
+   "changes": []
+  },
+  "? 버튼": {
+   "seen": 0,
+   "first": "2026-10-29T09:39:57.200Z",
+   "changes": [],
+   "name": "? 버튼",
+   "kind": "ui",
+   "kindGuess": false,
+   "signature": "",
+   "meaning": "화면 오른쪽 위 아이콘 3개 중 가운데에 있음 — 누르면 정보 창(게임 설명서)이 뜬다. 함수·문법을 배우기 좋다",
+   "example": "",
+   "last": "2026-10-29T09:39:57.200Z",
+   "sources": [
+    {
+     "at": "2026-10-29T09:39:57.200Z",
+     "check": 0,
+     "screen": "play",
+     "how": "사용자가 알려줌",
+     "from": "화면 오른쪽 위 아이콘 3개 중 가운데의 ? 버튼"
+    }
+   ]
+  },
+  "ntitiø": {
+   "name": "ntitiø",
+   "kind": "entity",
+   "kindGuess": false,
+   "signature": "",
+   "meaning": "",
+   "example": "",
+   "seen": 1,
+   "first": "2026-10-29T09:40:38.733Z",
+   "last": "2026-10-29T09:40:38.733Z",
+   "sources": [
+    {
+     "at": "2026-10-29T09:40:38.733Z",
+     "check": 2,
+     "screen": "docs",
+     "how": "LLM",
+     "from": "설명서 목차의 'Entities'"
+    }
+   ],
+   "changes": []
   }
  },
  "state": {
-  "at": "2026-10-28T12:49:31.261Z",
-  "check": 11,
+  "at": "2026-10-29T11:11:51.034Z",
+  "check": 9,
   "screen": "play",
-  "facts": []
+  "facts": [
+   {
+    "key": "resources",
+    "value": "자원 수량 확인 필요",
+    "from": "Last known state"
+   },
+   {
+    "key": "code_windows",
+    "value": "f0",
+    "from": "Last known state"
+   },
+   {
+    "key": "running",
+    "value": "아님",
+    "from": "Last known state"
+   },
+   {
+    "key": "farm_size",
+    "value": "밭 크기 확인 필요",
+    "from": "Last known state"
+   },
+   {
+    "key": "errors",
+    "value": "오류 메시지 없음",
+    "from": "Last known state"
+   },
+   {
+    "key": "choices",
+    "value": "새 코드 창 추가",
+    "from": "Last known state"
+   }
+  ]
  },
  "pagesRead": [
   "First Program"
